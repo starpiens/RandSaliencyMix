@@ -1,0 +1,17 @@
+model:
+  name: resnet
+  args:
+    dataset: imagenet
+    depth: 50
+    num_classes: 200
+    bottleneck: True
+
+train_dataset:
+  name: imagenet
+  path: dataset/tiny-imagenet/train
+  batch_size: 256
+
+val_dataset:
+  name: imagenet
+  path: dataset/tiny-imagenet/val
+  batch_size: 128

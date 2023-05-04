@@ -24,7 +24,7 @@ Improving the data augmentation technique of the target paper [[1]](#ref1) by ad
 ## Getting Started
 ### Setup
 ```shell
-conda create -n rand_saliency_mix python=3
+conda create -n rand_saliency_mix python=3.10
 conda activate rand_saliency_mix
 pip install -r requirements.txt
 ```
@@ -32,5 +32,5 @@ pip install -r requirements.txt
 ### Train
 To train Resnet with RandSaliencyMix:
 ```shell
-python codes/train.py --cfg configs/train/train_resnet_randsalmix.yaml --gpu 0,1
+python codes/train.py --config configs/train/resnet50_imagenet_randsalmix.yaml --gpu 0,1
 ```
