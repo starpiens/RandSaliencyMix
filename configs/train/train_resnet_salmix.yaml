@@ -1,0 +1,3 @@
+model:
+  name: resnet
+  args:
