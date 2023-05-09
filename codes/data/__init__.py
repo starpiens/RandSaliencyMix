@@ -1,6 +1,6 @@
-from .create_loader import create_train_loader, create_val_loader
+from .preprocess import ColorJitter, Lighting
 
 __all__ = [
-    'create_train_loader',
-    'create_val_loader',
+    'ColorJitter',
+    'Lighting',
 ]

@@ -1,5 +1,6 @@
 # PyCharm
 .idea
+.run
 
 # MacOS Finder
 .DS_Store

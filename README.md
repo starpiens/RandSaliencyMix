@@ -32,5 +32,5 @@ pip install -r requirements.txt
 ### Train
 To train Resnet with RandSaliencyMix:
 ```shell
-python codes/train.py --config configs/train/resnet50_imagenet_randsalmix.yaml --gpu 0,1
+python codes/train.py --config configs/train/res50_tinyimnet_randsalmix.yaml --gpu 0,1
 ```

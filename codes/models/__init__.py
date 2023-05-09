@@ -1,5 +1,5 @@
-from .create_model import create_model
+from .resnet import ResNet
 
 __all__ = [
-    'create_model',
+    'ResNet',
 ]

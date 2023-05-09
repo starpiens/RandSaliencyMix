@@ -15,3 +15,20 @@ val_dataset:
   name: imagenet
   path: dataset/tiny-imagenet/val
   batch_size: 128
+
+optimizer:
+  name: SGD
+  args:
+    lr: 0.1
+    momentum: 0.9
+    weight_decay: !!float 1e-4
+    nesterov: True
+
+scheduler:
+  name: StepLR
+  args:
+    step_size: 75
+    gamma: 0.1
+
+loss: CrossEntropyLoss
+epochs: 300
