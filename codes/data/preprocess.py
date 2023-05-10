@@ -62,7 +62,7 @@ class Grayscale(object):
 
     def __call__(self, img):
         gs = img.clone()
-        gs[0].mul_(0.299).add_(0.587, gs[1]).add_(0.114, gs[2])
+        gs[0].mul_(0.299).add_(gs[1], 0.587).add_(gs[2], 0.114)
         gs[1].copy_(gs[0])
         gs[2].copy_(gs[0])
         return gs
