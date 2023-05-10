@@ -8,7 +8,7 @@ from torch import nn
 from torch.backends import cudnn
 
 from forge import *
-from utils import AverageMeter, calc_accuracy
+from utils import AverageMeter, calc_error
 
 
 def prepare_training(cfg):
@@ -29,14 +29,14 @@ def train(loader, model, optim, loss_fn):
     top1_meter = AverageMeter()
     top5_meter = AverageMeter()
 
-    for i, (input, target) in enumerate(tqdm.tqdm(loader)):
-        input = input.cuda()
-        target = target.cuda()
-        output = model.forward(input)
-        loss = loss_fn(output, target)
+    for i, (inp, tar) in enumerate(tqdm.tqdm(loader)):
+        inp = inp.cuda()
+        tar = tar.cuda()
+        output = model.forward(inp)
+        loss = loss_fn(output, tar)
 
-        err1, err5 = calc_accuracy(output, target, topk=(1, 5))
-        num_items = input.shape[0]
+        err1, err5 = calc_error(output, tar, topk=(1, 5))
+        num_items = inp.shape[0]
         loss_meter.update(loss.item(), num_items)
         top1_meter.update(err1, num_items)
         top5_meter.update(err5, num_items)

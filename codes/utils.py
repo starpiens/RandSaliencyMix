@@ -16,7 +16,7 @@ class AverageMeter:
         self.avg = self.sum / self.cnt
 
 
-def calc_accuracy(output, target, topk=(1,)):
+def calc_error(output, target, topk=(1,)):
     maxk = max(topk)
     batch_size = target.shape[0]
 

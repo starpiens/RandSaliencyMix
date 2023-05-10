@@ -12,7 +12,7 @@ def create_train_loader(train_dataset_cfg):
     path = train_dataset_cfg['path']
     batch_size = train_dataset_cfg['batch_size']
 
-    if name == 'imagenet':
+    if name == 'ImageNet':
         transform = transforms.Compose([
             transforms.RandomResizedCrop(224),
             transforms.RandomHorizontalFlip(),
@@ -30,7 +30,7 @@ def create_train_loader(train_dataset_cfg):
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=True,
                             num_workers=4, pin_memory=True)
     else:
-        raise NotImplementedError('Only imagenet is supported.')
+        raise NotImplementedError(f'Dataset "{name}" is not supported.')
 
     return loader
 
@@ -40,7 +40,7 @@ def create_val_loader(val_dataset_cfg):
     path = val_dataset_cfg['path']
     batch_size = val_dataset_cfg['batch_size']
 
-    if name == 'imagenet':
+    if name == 'ImageNet':
         transform = transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(224),
@@ -52,7 +52,7 @@ def create_val_loader(val_dataset_cfg):
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
                             num_workers=4, pin_memory=True)
     else:
-        raise NotImplementedError('Only imagenet is supported.')
+        raise NotImplementedError(f'Dataset "{name}" is not supported.')
 
     return loader
 
@@ -61,7 +61,7 @@ def create_model(model_cfg):
     name = model_cfg['name']
     args = model_cfg['args']
 
-    if name == 'resnet':
+    if name == 'ResNet':
         model = models.ResNet(**args)
     else:
         raise NotImplementedError(f'Model "{name}" is not supported.')
@@ -76,7 +76,7 @@ def create_optimizer(optim_cfg, model):
     if name == 'SGD':
         optim = torch.optim.SGD(model.parameters(), **args)
     else:
-        raise NotImplementedError(f'Optimizer "{name} is not supported.')
+        raise NotImplementedError(f'Optimizer "{name}" is not supported.')
 
     return optim
 
@@ -88,6 +88,6 @@ def create_scheduler(sch_cfg, optim):
     if name == 'StepLR':
         scheduler = torch.optim.lr_scheduler.StepLR(optim, **args)
     else:
-        raise NotImplementedError(f'Scheduler "{name} is not supported.')
+        raise NotImplementedError(f'Scheduler "{name}" is not supported.')
 
     return scheduler
