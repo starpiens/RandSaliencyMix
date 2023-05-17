@@ -1,6 +1,7 @@
-# PyCharm
-.idea
-.run
+# IDE
+.idea/
+.run/
+.vscode/
 
 # MacOS Finder
 .DS_Store
