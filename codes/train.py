@@ -72,6 +72,7 @@ def validate(val_loader, model, loss_fn):
     top1_meter = AverageMeter()
     top5_meter = AverageMeter()
     for i, (inp, tar) in enumerate(tqdm.tqdm(loader)):
+        inp = inp.cuda()
         tar = tar.cuda()
 
         output = model.forward(inp)
