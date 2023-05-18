@@ -66,8 +66,24 @@ def train(loader, model, optim, loss_fn, cfg):
     return loss_meter.avg, top1_meter.avg, top5_meter.avg
 
 
-def validate(val_loader, model):
-    pass
+def validate(val_loader, model, loss_fn):
+    model.eval()
+    loss_meter = AverageMeter()
+    top1_meter = AverageMeter()
+    top5_meter = AverageMeter()
+    for i, (inp, tar) in enumerate(tqdm.tqdm(loader)):
+        tar = tar.cuda()
+
+        output = model.forward(inp)
+        loss = loss_fn(output, tar)
+
+        err1, err5 = calc_error(output, tar, topk=(1, 5))
+        num_items = inp.shape[0]
+        loss_meter.update(loss.item(), num_items)
+        top1_meter.update(err1, num_items)
+        top5_meter.update(err5, num_items)
+
+    return loss_meter.avg, top1_meter.avg, top5_meter.avg
 
 
 def main():
@@ -89,6 +105,7 @@ def main():
 
     for epoch in range(cfg['epochs']):
         train(train_loader, model, optim, loss_fn, cfg)
+        validate(val_loader, model, loss_fn)
         scheduler.step()
 
 
