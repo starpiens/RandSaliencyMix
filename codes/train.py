@@ -11,8 +11,6 @@ from data import saliency_mix
 from forge import *
 from utils import AverageMeter, calc_error
 
-#os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-
 
 def prepare_training(cfg):
     train_loader = create_train_loader(cfg['train_dataset'])
@@ -38,38 +36,14 @@ def train(loader, model, optim, loss_fn, cfg):
             aug_name = cfg['augment']['name']
             aug_args = cfg['augment']['args']
             if aug_name == 'SaliencyMix':
-                inp, tar_a, tar_b, Cs, Ct = saliency_mix(inp, tar, **aug_args)
+                inp, tar_a, tar_b, lam = saliency_mix(inp, tar, **aug_args)
                 inp = inp.cuda()
                 tar = tar.cuda()
                 tar_a = tar_a.cuda()
                 tar_b = tar_b.cuda()
-                Cs = torch.tensor(Cs).cuda()
-                Ct = torch.tensor(Ct).cuda()
                 output = model.forward(inp)
-            
-                # # Sum of target image losses
-                loss_t = 0 
-                for i in range(len(inp)):
-                    loss_t += loss_fn(output[i], tar_a[i]) * Ct[i] 
+                loss = loss_fn(output, tar_a) * lam + loss_fn(output, tar_b) * (1 - lam)
 
-                # # AVERAGE of loss_t
-                loss_t /= len(inp)
-
-                # 2
-                # weight_tar_a = torch.mul(tar_a, Ct)
-                # weight_tar_a = weight_tar_a.type(torch.LongTensor)
-                # output = output.cuda()
-                # loss_t = loss_fn(output, weight_tar_a)
-
-                # source patch loss
-                loss_s = loss_fn(output, tar_b) * Cs
-
-                # final loss = loss_s + loss_t 
-                loss = loss_s + loss_t
-                print("loss_s :", loss_s)
-                print("loss_t :", loss_t)
-                print("loss :", loss)
-                
             else:
                 raise NotImplementedError(f'Augmentation "{aug_name}" is not supported.')
 
@@ -114,7 +88,6 @@ def main():
     train_loader, val_loader, model, optim, scheduler, loss_fn = prepare_training(cfg)
 
     for epoch in range(cfg['epochs']):
-        print("epoch: ",epoch)
         train(train_loader, model, optim, loss_fn, cfg)
         scheduler.step()
 
