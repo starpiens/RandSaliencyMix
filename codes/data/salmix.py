@@ -18,9 +18,16 @@ def saliency_bbox(img, lam):
     _, saliency_map = saliency_detector.computeSaliency(temp_img)
     saliency_map = (saliency_map * 255).astype("uint8")
 
-    maximum_indices = np.unravel_index(np.argmax(saliency_map, axis=None), saliency_map.shape)
-    x = maximum_indices[0]
-    y = maximum_indices[1]
+    # to make saliency map -> probability map
+    saliency_map_1d = np.array(saliency_map).flatten().tolist()
+    p_map = np.array(saliency_map_1d) / sum(saliency_map_1d)
+    pp = np.random.choice(p_map, 1, p=p_map, replace=False)
+
+    #find the index
+    idx = np.unravel_index(np.where(p_map == float(pp)), saliency_map.shape)
+    rr = np.random.randint(0, len(idx[0][0])-1)
+    x = idx[0][0][rr]
+    y = idx[1][0][rr]
 
     bbx1 = np.clip(x - cut_w // 2, 0, width)
     bby1 = np.clip(y - cut_h // 2, 0, height)
