@@ -6,20 +6,28 @@ model:
     num_classes: 200
     bottleneck: True
 
-train_dataset:
-  name: ImageNet
-  path: dataset/tiny-imagenet/train
-  batch_size: 256
+train_dataloader:
+  args:
+    batch_size: 256
+  dataset:
+    name: ImageNet
+    args:
+      path: ~/dataset/tiny-imagenet/train
+      train: True
+
+val_dataloader:
+  args:
+    batch_size: 128
+  dataset:
+    name: ImageNet
+    args:
+      path: ~/dataset/tiny-imagenet/train
+      train: False
 
 augment:
   name: SaliencyMix
   args:
     beta: 1.0
-
-val_dataset:
-  name: ImageNet
-  path: dataset/tiny-imagenet/val
-  batch_size: 128
 
 optimizer:
   name: SGD
@@ -35,5 +43,7 @@ scheduler:
     step_size: 75
     gamma: 0.1
 
-loss: CrossEntropyLoss
+loss: 
+  name: CrossEntropyLoss
+
 epochs: 100

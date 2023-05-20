@@ -2,3 +2,5 @@ torch==2.0.0
 torchvision
 pyyaml
 tqdm
+opencv-python
+opencv-contrib-python
