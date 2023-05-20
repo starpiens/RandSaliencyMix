@@ -1,8 +1,7 @@
-from .preprocess import ColorJitter, Lighting
+from .dataset import ImageNet
 from .salmix import saliency_mix
 
 __all__ = [
-    'ColorJitter',
-    'Lighting',
+    'ImageNet',
     'saliency_mix',
 ]

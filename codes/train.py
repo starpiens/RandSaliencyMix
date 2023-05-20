@@ -8,20 +8,9 @@ from torch import nn
 from torch.backends import cudnn
 
 from data import saliency_mix
-from forge import *
+from forge import create_train_loader, create_val_loader, create_model, \
+                  create_optimizer, create_scheduler, create_loss_fn
 from utils import AverageMeter, calc_error
-
-
-def prepare_training(cfg):
-    train_loader = create_train_loader(cfg['train_dataset'])
-    val_loader = create_val_loader(cfg['val_dataset'])
-    model = create_model(cfg['model'])
-    model = nn.DataParallel(model)
-    model = model.cuda()
-    optim = create_optimizer(cfg['optimizer'], model)
-    scheduler = create_scheduler(cfg['scheduler'], optim)
-    loss_fn = nn.CrossEntropyLoss().cuda()
-    return train_loader, val_loader, model, optim, scheduler, loss_fn
 
 
 def train(loader, model, optim, loss_fn, cfg):
@@ -72,23 +61,39 @@ def validate(val_loader, model):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config')
-    parser.add_argument('--gpu')
+    parser.add_argument('config', type=str,
+                        help='Path to config .yaml file')
+    parser.add_argument('--gpu', type=str, default=None,
+                        help='Number of gpu(s) to use')
     args = parser.parse_args()
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
-    cudnn.benchmark = True
-
+    # Load config.
     with open(args.config, 'r') as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)
         if cfg is not None:
             print('Loaded config.')
         else:
             raise IOError('Failed to load config.')
-    train_loader, val_loader, model, optim, scheduler, loss_fn = prepare_training(cfg)
 
+    # Setup environment.
+    if args.gpu is not None:
+        os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+    cudnn.benchmark = True
+
+    # Prepare training. 
+    train_loader = create_train_loader(cfg['train_dataloader'])
+    val_loader = create_val_loader(cfg['val_dataloader'])
+    model = create_model(cfg['model'])
+    model = nn.DataParallel(model)
+    model = model.cuda()
+    optim = create_optimizer(cfg['optimizer'], model)
+    scheduler = create_scheduler(cfg['scheduler'], optim)
+    loss_fn = create_loss_fn(cfg['loss'])
+
+    # Train.
     for epoch in range(cfg['epochs']):
         train(train_loader, model, optim, loss_fn, cfg)
+        
         scheduler.step()
 
 
