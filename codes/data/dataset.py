@@ -5,7 +5,6 @@ from . import preprocess
 
 
 class ImageNet(Dataset):
-
     def __init__(self, path, train=True):
         super().__init__()
         if train:

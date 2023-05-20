@@ -13,9 +13,9 @@ from forge import create_train_loader, create_val_loader, create_model, \
 from utils import AverageMeter, TopkError
 
 
-def train(loader, model, optim, loss_fn, cfg, criteria_fns=[]):
+def train(loader, model, optim, loss_fn, cfg, criterion_fns=[]):
     model.train()
-    scores = [AverageMeter() for _ in range(len(criteria_fns) + 1)]
+    results = [AverageMeter() for _ in range(len(criterion_fns))]
 
     for idx, (inp, tar) in enumerate(tqdm.tqdm(loader, desc="Training")):
         # Perform augmentation.
@@ -40,22 +40,41 @@ def train(loader, model, optim, loss_fn, cfg, criteria_fns=[]):
             out = model(inp)
             loss = loss_fn(out, tar)
 
-        # Update train stats.
+        # Update train results.
         num_items = inp.shape[0]
-        scores[0].update(loss.item(), num_items)
-        for i in range(len(criteria_fns)):
-            score = criteria_fns[i](out, tar)
-            scores[i + 1].update(score, num_items)
+        for i in range(len(criterion_fns)):
+            with torch.no_grad():
+                result = criterion_fns[i](out, tar)
+            if type(result) is torch.Tensor:
+                result = result.item()
+            results[i].update(result, num_items)
 
         optim.zero_grad()
         loss.backward()
         optim.step()
 
-    return [i.avg for i in scores]
+    return [i.avg for i in results]
 
 
-def validate(val_loader, model):
-    pass
+@torch.no_grad()
+def validate(loader, model, criterion_fns=[]):
+    model.eval()
+    results = [AverageMeter() for _ in range(len(criterion_fns))]
+    
+    for idx, (inp, tar) in enumerate(tqdm.tqdm(loader, desc="Validating")):
+        inp = inp.cuda()
+        tar = tar.cuda()
+        out = model(inp)
+
+        # Update validation results.
+        num_items = inp.shape[0]
+        for i in range(len(criterion_fns)):
+            result = criterion_fns[i](out, tar)
+            if type(result) is torch.Tensor:
+                result = result.item()
+            results[i].update(result, num_items)
+        
+    return [i.avg for i in results]
 
 
 def main():
@@ -120,11 +139,16 @@ def main():
     print('Starting training...', flush=True)
     for epoch in range(1, cfg['epochs'] + 1):
         print(f'Epoch {epoch}/{cfg["epochs"]}')
-        train_loss, topk_err = train(train_loader, model, optim, 
-                                     loss_fn, cfg, [topk_err_fn])
-        print(f'\tLoss:     ', train_loss)
-        print(f'\tTop-1 err:', topk_err[0])
-        print(f'\tTop-5 err:', topk_err[1])
+        loss, topk_err = train(train_loader, model, optim, 
+                                     loss_fn, cfg, [loss_fn, topk_err_fn])
+        print(f'\tLoss:     ', loss)
+        print(f'\tTop-1 err:', topk_err[0])     # type: ignore
+        print(f'\tTop-5 err:', topk_err[1])     # type: ignore
+
+        loss, topk_err = validate(val_loader, model, [loss_fn, topk_err_fn])
+        print(f'\tLoss:     ', loss)
+        print(f'\tTop-1 err:', topk_err[0])     # type: ignore
+        print(f'\tTop-5 err:', topk_err[1])     # type: ignore
 
         scheduler.step()
         print()
