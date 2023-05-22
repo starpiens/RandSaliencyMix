@@ -6,6 +6,9 @@
 # MacOS Finder
 .DS_Store
 
-# python
+# Python
 __pycache__/
 *.pyc
+
+# Tensorboard
+runs/

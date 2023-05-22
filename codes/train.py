@@ -6,6 +6,7 @@ import yaml
 import torch
 from torch import nn
 from torch.backends import cudnn
+from torch.utils.tensorboard.writer import SummaryWriter
 
 from data import saliency_mix
 from forge import create_train_loader, create_val_loader, create_model, \
@@ -17,7 +18,7 @@ def train(loader, model, optim, loss_fn, cfg, criterion_fns=[]):
     model.train()
     results = [AverageMeter() for _ in range(len(criterion_fns))]
 
-    for idx, (inp, tar) in enumerate(tqdm.tqdm(loader, desc="Training")):
+    for idx, (inp, tar) in enumerate(tqdm.tqdm(loader, desc="Training  ")):
         # Perform augmentation.
         if 'augment' in cfg:
             aug_name = cfg['augment']['name']
@@ -113,6 +114,7 @@ def main():
     scheduler = create_scheduler(cfg['scheduler'], optim)
     loss_fn = create_loss_fn(cfg['loss'])
     topk_err_fn = TopkError(topk=(1, 5))
+    writer = SummaryWriter()
     
     print('Prepared training with:' )
     print('\tTrain data: class "{}" from "{}".'.format(
@@ -135,23 +137,35 @@ def main():
         loss_fn.__class__.__module__))
     print()
     
-    # Train.
+    # Start training.
     print('Starting training...', flush=True)
     for epoch in range(1, cfg['epochs'] + 1):
         print(f'Epoch {epoch}/{cfg["epochs"]}')
-        loss, topk_err = train(train_loader, model, optim, 
-                                     loss_fn, cfg, [loss_fn, topk_err_fn])
-        print(f'\tLoss:     ', loss)
-        print(f'\tTop-1 err:', topk_err[0])     # type: ignore
-        print(f'\tTop-5 err:', topk_err[1])     # type: ignore
 
-        loss, topk_err = validate(val_loader, model, [loss_fn, topk_err_fn])
+        # Train for an epoch.
+        loss, topk_err = train(train_loader, model, optim, 
+                               loss_fn, cfg, [loss_fn, topk_err_fn])
         print(f'\tLoss:     ', loss)
-        print(f'\tTop-1 err:', topk_err[0])     # type: ignore
-        print(f'\tTop-5 err:', topk_err[1])     # type: ignore
+        print(f'\tTop-1 err:', topk_err[0])                      # type: ignore
+        print(f'\tTop-5 err:', topk_err[1])                      # type: ignore
+        writer.add_scalar('train/loss', loss, epoch)             # type: ignore
+        writer.add_scalar('train/top-1 err', topk_err[0], epoch) # type: ignore
+        writer.add_scalar('train/top-5 err', topk_err[1], epoch) # type: ignore
+
+        # Validate.
+        loss, topk_err = validate(val_loader, model, [loss_fn, topk_err_fn])
+        print(f'\tLoss:     ', loss)                             
+        print(f'\tTop-1 err:', topk_err[0])                      # type: ignore
+        print(f'\tTop-5 err:', topk_err[1])                      # type: ignore
+        writer.add_scalar('val/loss', loss, epoch)             # type: ignore
+        writer.add_scalar('val/top-1 err', topk_err[0], epoch) # type: ignore
+        writer.add_scalar('val/top-5 err', topk_err[1], epoch) # type: ignore
 
         scheduler.step()
+        writer.flush()
         print()
+
+    writer.close()
 
 
 if __name__ == '__main__':
