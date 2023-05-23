@@ -1,38 +1,19 @@
-import torch
-
-
-
 class AverageMeter:
     """Computes and stores the average and current value."""
     def __init__(self):
-        self.val = None
-        self.sum = None
-        self.avg = None
+        self.val = []
+        self.sum = [0]
+        self.avg = [0]
         self.cnt = 0
 
     def reset(self):
         self.__init__()
 
     def update(self, val, n=1):
-        assert type(val) in (int, float, tuple, list)
-        if self.val is not None:
-            assert type(self.val) == type(val)
-
-        self.val = val
+        self.val = list(val)
         self.cnt += n
-
-        if type(val) in (tuple, list):
-            if self.sum is None:
-                self.sum = [0.] * len(val)
-            self.sum = [i + j * n for i, j in zip(self.sum, val)]   # type: ignore
-            self.avg = [i / self.cnt for i in self.sum]
-
-        else:
-            if self.sum is None:
-                self.sum = 0
-            self.sum += val * n
-            self.avg = self.sum / self.cnt
-
+        self.sum = [i + j * n for i, j in zip(self.sum, self.val)]
+        self.avg = [i / self.cnt for i in self.sum]
 
 
 class TopkError:
@@ -53,3 +34,8 @@ class TopkError:
             res.append(wrong_k.item() * 100 / batch_size)
 
         return res
+
+
+def save_checkpoint():
+    pass
+

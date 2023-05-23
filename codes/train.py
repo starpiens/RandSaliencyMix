@@ -145,21 +145,21 @@ def main():
         # Train for an epoch.
         loss, topk_err = train(train_loader, model, optim, 
                                loss_fn, cfg, [loss_fn, topk_err_fn])
-        print(f'\tLoss:     ', loss)
-        print(f'\tTop-1 err:', topk_err[0])                      # type: ignore
-        print(f'\tTop-5 err:', topk_err[1])                      # type: ignore
-        writer.add_scalar('train/loss', loss, epoch)             # type: ignore
-        writer.add_scalar('train/top-1 err', topk_err[0], epoch) # type: ignore
-        writer.add_scalar('train/top-5 err', topk_err[1], epoch) # type: ignore
+        print(f'\tLoss:     ', loss[0])
+        print(f'\tTop-1 err:', topk_err[0])
+        print(f'\tTop-5 err:', topk_err[1])
+        writer.add_scalar('train/loss', loss[0], epoch)
+        writer.add_scalar('train/top-1 err', topk_err[0], epoch)
+        writer.add_scalar('train/top-5 err', topk_err[1], epoch)
 
         # Validate.
         loss, topk_err = validate(val_loader, model, [loss_fn, topk_err_fn])
-        print(f'\tLoss:     ', loss)                             
-        print(f'\tTop-1 err:', topk_err[0])                      # type: ignore
-        print(f'\tTop-5 err:', topk_err[1])                      # type: ignore
-        writer.add_scalar('val/loss', loss, epoch)             # type: ignore
-        writer.add_scalar('val/top-1 err', topk_err[0], epoch) # type: ignore
-        writer.add_scalar('val/top-5 err', topk_err[1], epoch) # type: ignore
+        print(f'\tLoss:     ', loss[0])                             
+        print(f'\tTop-1 err:', topk_err[0])
+        print(f'\tTop-5 err:', topk_err[1])
+        writer.add_scalar('val/loss', loss[0], epoch)
+        writer.add_scalar('val/top-1 err', topk_err[0], epoch)
+        writer.add_scalar('val/top-5 err', topk_err[1], epoch)
 
         scheduler.step()
         writer.flush()
