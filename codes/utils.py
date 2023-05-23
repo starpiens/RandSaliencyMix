@@ -2,15 +2,22 @@ class AverageMeter:
     """Computes and stores the average and current value."""
     def __init__(self):
         self.val = []
-        self.sum = [0]
-        self.avg = [0]
+        self.sum = [0.]
+        self.avg = [0.]
         self.cnt = 0
 
     def reset(self):
         self.__init__()
 
-    def update(self, val, n=1):
-        self.val = list(val)
+    def update(self, 
+               val: int | float | list[int | float] | tuple[int | float], 
+               n: int = 1):
+        if isinstance(val, int) or isinstance(val, float):
+            val = [val]
+        elif isinstance(val, tuple):
+            val = list(val)
+
+        self.val = val
         self.cnt += n
         self.sum = [i + j * n for i, j in zip(self.sum, self.val)]
         self.avg = [i / self.cnt for i in self.sum]
