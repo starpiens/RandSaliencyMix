@@ -41,8 +41,3 @@ class TopkError:
             res.append(wrong_k.item() * 100 / batch_size)
 
         return res
-
-
-def save_checkpoint():
-    pass
-
