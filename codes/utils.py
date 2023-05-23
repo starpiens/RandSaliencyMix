@@ -10,12 +10,13 @@ class AverageMeter:
         self.__init__()
 
     def update(self, 
-               val: int | float | list[int | float] | tuple[int | float], 
+               val: int | float | list[int | float], 
                n: int = 1):
         if isinstance(val, int) or isinstance(val, float):
             val = [val]
-        elif isinstance(val, tuple):
-            val = list(val)
+        elif isinstance(val, list) and len(self.sum) != len(val):
+            self.sum = [0.] * len(val)
+            self.avg = [0.] * len(val)
 
         self.val = val
         self.cnt += n

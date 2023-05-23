@@ -81,6 +81,9 @@ def train(loader, model, optim, loss_fn, cfg, criterion_fns=[]):
         loss.backward()
         optim.step()
 
+        if idx == 3:
+            break
+
     return [i.avg for i in results]
 
 
@@ -149,10 +152,10 @@ def main():
         train_loader, val_loader, model, optim, sched, loss_fn \
             = prepare_training(cfg)
         start_epoch = 1
-        run_name = '{}{}{}_{}{}{}_{}'.format(
-            datetime.year, datetime.month, datetime.day,
-            datetime.hour, datetime.minute, datetime.second,
-            os.path.basename(args.config)
+        now = datetime.now()
+        run_name = '{}_{}'.format(
+            now.strftime('%y%m%d_%H%M%S'),
+            os.path.splitext(os.path.basename(args.config))[0]
         )
 
     # Prepare training from the checkpoint.
@@ -193,10 +196,11 @@ def main():
     print()
 
     tb_log_path = os.path.join(args.tb_log_dir, run_name)
-    best_save_path = os.path.join(args.save_dir, run_name, '_best.pth')
-    last_save_path = os.path.join(args.save_dir, run_name, '_last.pth')
+    best_save_path = os.path.join(args.save_dir, run_name, 'best.pth')
+    last_save_path = os.path.join(args.save_dir, run_name, 'last.pth')
+    os.makedirs(os.path.join(args.save_dir, run_name), exist_ok=True)
     writer = SummaryWriter(tb_log_path)
-    writer.add_text('configs', cfg)
+    writer.add_text('configs', str(cfg))
     print(f'Tensorboard log path: {tb_log_path}')
     print(f'Best model save path: {best_save_path}')
     print(f'Last model save path: {last_save_path}')
