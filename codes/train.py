@@ -81,9 +81,6 @@ def train(loader, model, optim, loss_fn, cfg, criterion_fns=[]):
         loss.backward()
         optim.step()
 
-        if idx == 3:
-            break
-
     return [i.avg for i in results]
 
 
