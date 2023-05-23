@@ -127,10 +127,11 @@ def main():
     args = parser.parse_args()
 
     # Setup environment.
+    os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
+    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA not available.")
     if args.gpu is not None:
-        os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
         print(f'Using GPU(s): {args.gpu}.', flush=True)
     else:
         print(f'Using all {torch.cuda.device_count()} GPU(s).', flush=True)
