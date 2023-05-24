@@ -1,3 +1,5 @@
+import torch
+from torch.nn.functional import one_hot
 from torchvision import transforms, datasets
 from torch.utils.data import Dataset
 
@@ -5,8 +7,10 @@ from . import preprocess
 
 
 class ImageNet(Dataset):
-    def __init__(self, path, train=True):
+    def __init__(self, path, num_classes, train=True):
         super().__init__()
+        self.num_classes = num_classes
+
         if train:
             transform = transforms.Compose([
                 transforms.RandomResizedCrop(224),
@@ -35,4 +39,8 @@ class ImageNet(Dataset):
         return len(self.dataset)
 
     def __getitem__(self, index):
-        return self.dataset[index]
+        img, label = self.dataset[index]
+        label = torch.tensor(label)
+        label = one_hot(label, num_classes=self.num_classes)
+        label = label.float()
+        return (img, label)

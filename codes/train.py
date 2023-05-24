@@ -205,7 +205,9 @@ def main():
     print()
 
     # Start training.
-    topk_err_fn = TopkError(topk=(1, 5))
+    
+    top1_err_fn = TopkError(k=1)
+    top5_err_fn = TopkError(k=5)
     trn_best_loss = math.inf
     trn_best_top1 = math.inf
     trn_best_top5 = math.inf
@@ -218,9 +220,10 @@ def main():
         print(f'Epoch {epoch}/{cfg["epochs"]}')
 
         # Train for an epoch.
-        loss, topk_err = train(train_loader, model, optim, 
-                               loss_fn, cfg, [loss_fn, topk_err_fn])
-        loss, top1_err, top5_err = loss[0], topk_err[0], topk_err[1]
+        loss, top1_err, top5_err = \
+            train(train_loader, model, optim, loss_fn, cfg, 
+                  [loss_fn, top1_err_fn, top5_err_fn])
+        
         trn_best_loss = min(trn_best_loss, loss)
         trn_best_top1 = min(trn_best_top1, top1_err)
         trn_best_top5 = min(trn_best_top5, top5_err)
@@ -235,8 +238,9 @@ def main():
         writer.add_scalar('train/top-5 err (best)', trn_best_top5, epoch)
 
         # Validate.
-        loss, topk_err = validate(val_loader, model, [loss_fn, topk_err_fn])
-        loss, top1_err, top5_err = loss[0], topk_err[0], topk_err[1]
+        loss, top1_err, top5_err = \
+            validate(val_loader, model, [loss_fn, top1_err_fn, top5_err_fn])
+        
         val_best_loss = min(val_best_loss, loss)
         val_best_top1 = min(val_best_top1, top1_err)
         val_best_top5 = min(val_best_top5, top5_err)

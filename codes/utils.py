@@ -1,44 +1,34 @@
+import torch
+
+
 class AverageMeter:
     """Computes and stores the average and current value."""
     def __init__(self):
-        self.val = []
-        self.sum = [0.]
-        self.avg = [0.]
+        self.val = 0
+        self.sum = 0
+        self.avg = 0
         self.cnt = 0
 
     def reset(self):
         self.__init__()
 
-    def update(self, 
-               val: int | float | list[int | float], 
-               n: int = 1):
-        if isinstance(val, int) or isinstance(val, float):
-            val = [val]
-        elif isinstance(val, list) and len(self.sum) != len(val):
-            self.sum = [0.] * len(val)
-            self.avg = [0.] * len(val)
-
+    def update(self, val, n=1):
         self.val = val
         self.cnt += n
-        self.sum = [i + j * n for i, j in zip(self.sum, self.val)]
-        self.avg = [i / self.cnt for i in self.sum]
+        self.sum += val * n
+        self.avg = self.sum / self.cnt
 
 
 class TopkError:
-    def __init__(self, topk=(1,)):
-        self.topk = topk
-        self.maxk = max(topk)
+    def __init__(self, k: int = 1):
+        self.k = k
 
-    def __call__(self, output, target):
-        batch_size = target.shape[0]
-        _, pred = output.topk(self.maxk, dim=1, largest=True, sorted=True)
-        pred = pred.t()
-        correct = pred.eq(target.view(1, -1).expand_as(pred))
-
-        res = []
-        for k in self.topk:
-            correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
-            wrong_k = batch_size - correct_k
-            res.append(wrong_k.item() * 100 / batch_size)
-
-        return res
+    def __call__(self, out: torch.Tensor, tar: torch.Tensor):
+        batch_size = out.shape[0]
+        _, pred = out.topk(self.k)
+        num_correct = 0
+        for i in range(batch_size):
+            num_correct += tar[i][pred[i]].sum().item()
+        num_wrong = batch_size - num_correct
+        error = 100 * num_wrong / batch_size
+        return error

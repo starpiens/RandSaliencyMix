@@ -15,6 +15,7 @@ train_dataloader:
     args:
       path: ~/dataset/tiny-imagenet/train
       train: True
+      num_classes: 200
 
 val_dataloader:
   args:
@@ -24,6 +25,7 @@ val_dataloader:
     args:
       path: ~/dataset/tiny-imagenet/val
       train: False
+      num_classes: 200
 
 augment:
   name: SaliencyMix
