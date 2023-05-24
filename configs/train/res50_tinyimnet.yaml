@@ -1,0 +1,45 @@
+model:
+  name: ResNet
+  args:
+    dataset: imagenet
+    depth: 50
+    num_classes: 200
+    bottleneck: True
+
+train_dataloader:
+  args:
+    batch_size: 256
+    drop_last: False
+  dataset:
+    name: ImageNet
+    args:
+      path: ~/dataset/tiny-imagenet/train
+      train: True
+
+val_dataloader:
+  args:
+    batch_size: 256
+  dataset:
+    name: ImageNet
+    args:
+      path: ~/dataset/tiny-imagenet/val
+      train: False
+
+optimizer:
+  name: SGD
+  args:
+    lr: 0.1
+    momentum: 0.9
+    weight_decay: 0.0001
+    nesterov: True
+
+scheduler:
+  name: StepLR
+  args:
+    step_size: 30
+    gamma: 0.1
+
+loss: 
+  name: CrossEntropyLoss
+
+epochs: 100
