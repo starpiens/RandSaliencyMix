@@ -1,6 +1,6 @@
 import os
 import argparse
-
+import numpy as np
 import tqdm
 import yaml
 import torch
@@ -8,33 +8,19 @@ from torch import nn
 from torch.backends import cudnn
 
 from data import saliency_mix
-from forge import *
-from utils import AverageMeter, calc_error
-
-#os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-
-
-def prepare_training(cfg):
-    train_loader = create_train_loader(cfg['train_dataset'])
-    val_loader = create_val_loader(cfg['val_dataset'])
-    model = create_model(cfg['model'])
-    model = nn.DataParallel(model)
-    model = model.cuda()
-    optim = create_optimizer(cfg['optimizer'], model)
-    scheduler = create_scheduler(cfg['scheduler'], optim)
-    loss_fn = nn.CrossEntropyLoss().cuda()
-    return train_loader, val_loader, model, optim, scheduler, loss_fn
+from forge import create_train_loader, create_val_loader, create_model, \
+                  create_optimizer, create_scheduler, create_loss_fn
+from utils import AverageMeter, TopkError
 
 
-def train(loader, model, optim, loss_fn, cfg):
+def train(loader, model, optim, loss_fn, cfg, criterion_fns=[]):
     model.train()
-    loss_meter = AverageMeter()
-    top1_meter = AverageMeter()
-    top5_meter = AverageMeter()
+    results = [AverageMeter() for _ in range(len(criterion_fns))]
 
-    for i, (inp, tar) in enumerate(tqdm.tqdm(loader)):
-        # Perform augmentation
-        if 'augment' in cfg:
+    for idx, (inp, tar) in enumerate(tqdm.tqdm(loader, desc="Training")):
+        # Perform augmentation.
+        prob = np.random.rand(1) 
+        if 'augment' in cfg and prob > 0.5:
             aug_name = cfg['augment']['name']
             aug_args = cfg['augment']['args']
             if aug_name == 'SaliencyMix':
@@ -45,78 +31,144 @@ def train(loader, model, optim, loss_fn, cfg):
                 tar_b = tar_b.cuda()
                 Cs = torch.tensor(Cs).cuda()
                 Ct = torch.tensor(Ct).cuda()
-                output = model.forward(inp)
-            
-                # # Sum of target image losses
+                out = model(inp)
+
+                # Sum of the target image losses
                 loss_t = 0 
                 for i in range(len(inp)):
-                    loss_t += loss_fn(output[i], tar_a[i]) * Ct[i] 
+                    loss_t += loss_fn(out[i], tar_a[i]) * Ct[i] 
 
-                # # AVERAGE of loss_t
+                # AVERAGE of loss_t
                 loss_t /= len(inp)
 
-                # 2
-                # weight_tar_a = torch.mul(tar_a, Ct)
-                # weight_tar_a = weight_tar_a.type(torch.LongTensor)
-                # output = output.cuda()
-                # loss_t = loss_fn(output, weight_tar_a)
-
                 # source patch loss
-                loss_s = loss_fn(output, tar_b) * Cs
+                loss_s = loss_fn(out, tar_b) * Cs
 
                 # final loss = loss_s + loss_t 
                 loss = loss_s + loss_t
-                print("loss_s :", loss_s)
-                print("loss_t :", loss_t)
-                print("loss :", loss)
-                
             else:
                 raise NotImplementedError(f'Augmentation "{aug_name}" is not supported.')
 
         else:
             inp = inp.cuda()
             tar = tar.cuda()
-            output = model.forward(inp)
-            loss = loss_fn(output, tar)
+            out = model(inp)
+            loss = loss_fn(out, tar)
 
-        err1, err5 = calc_error(output, tar, topk=(1, 5))
+        # Update train results.
         num_items = inp.shape[0]
-        loss_meter.update(loss.item(), num_items)
-        top1_meter.update(err1, num_items)
-        top5_meter.update(err5, num_items)
+        for i in range(len(criterion_fns)):
+            with torch.no_grad():
+                result = criterion_fns[i](out, tar)
+            if type(result) is torch.Tensor:
+                result = result.item()
+            results[i].update(result, num_items)
 
         optim.zero_grad()
         loss.backward()
         optim.step()
 
-    return loss_meter.avg, top1_meter.avg, top5_meter.avg
+    return [i.avg for i in results]
 
 
-def validate(val_loader, model):
-    pass
+@torch.no_grad()
+def validate(loader, model, criterion_fns=[]):
+    model.eval()
+    results = [AverageMeter() for _ in range(len(criterion_fns))]
+    
+    for idx, (inp, tar) in enumerate(tqdm.tqdm(loader, desc="Validating")):
+        inp = inp.cuda()
+        tar = tar.cuda()
+        out = model(inp)
+
+        # Update validation results.
+        num_items = inp.shape[0]
+        for i in range(len(criterion_fns)):
+            result = criterion_fns[i](out, tar)
+            if type(result) is torch.Tensor:
+                result = result.item()
+            results[i].update(result, num_items)
+        
+    return [i.avg for i in results]
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config')
-    parser.add_argument('--gpu')
+    parser.add_argument('--config', type=str,
+                        help='Path to config .yaml file')
+    parser.add_argument('--gpu', type=str, default=None,
+                        help='Index of gpu(s) to use')
     args = parser.parse_args()
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
-    cudnn.benchmark = True
-
+    # Load config.
     with open(args.config, 'r') as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)
         if cfg is not None:
-            print('Loaded config.')
+            print(f'Loaded config at: {f.name}', flush=True)
         else:
             raise IOError('Failed to load config.')
-    train_loader, val_loader, model, optim, scheduler, loss_fn = prepare_training(cfg)
 
-    for epoch in range(cfg['epochs']):
-        print("epoch: ",epoch)
-        train(train_loader, model, optim, loss_fn, cfg)
+    # Setup environment.
+    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+    cudnn.benchmark = True
+    print(f'Using GPU(s): {args.gpu}.', flush=True)
+
+    # Prepare training. 
+    train_loader = create_train_loader(cfg['train_dataloader'])
+    val_loader = create_val_loader(cfg['val_dataloader'])
+    model = create_model(cfg['model'])
+    model = nn.DataParallel(model)
+    model = model.cuda()
+    optim = create_optimizer(cfg['optimizer'], model)
+    scheduler = create_scheduler(cfg['scheduler'], optim)
+    loss_fn = create_loss_fn(cfg['loss'])
+    topk_err_fn = TopkError(topk=(1, 5))
+    
+    print('Prepared training with:' )
+    print('\tTrain data: class "{}" from "{}".'.format(
+        train_loader.dataset.__class__.__name__,
+        train_loader.dataset.__class__.__module__))
+    print('\tVal data:   class "{}" from "{}".'.format(
+        val_loader.dataset.__class__.__name__,
+        val_loader.dataset.__class__.__module__))
+    print('\tModel:      class "{}" from "{}".'.format(
+        model.module.__class__.__name__,
+        model.module.__class__.__module__))
+    print('\tOptimizer:  class "{}" from "{}".'.format(
+        optim.__class__.__name__,
+        optim.__class__.__module__))
+    print('\tScheduler:  class "{}" from "{}".'.format(
+        scheduler.__class__.__name__,
+        scheduler.__class__.__module__))
+    print('\tLoss:       class "{}" from "{}".'.format(
+        loss_fn.__class__.__name__,
+        loss_fn.__class__.__module__))
+    print()
+    
+    train_log = open("codes/train.txt", 'w')
+    valid_log = open("codes/valid.txt", 'w')
+
+    # Train.
+    print('Starting training...', flush=True)
+    for epoch in range(1, cfg['epochs'] + 1):
+        print(f'Epoch {epoch}/{cfg["epochs"]}')
+        loss, topk_err = train(train_loader, model, optim, 
+                                     loss_fn, cfg, [loss_fn, topk_err_fn])
+        print(f'\tLoss:     ', loss)
+        print(f'\tTop-1 err:', topk_err[0])     # type: ignore
+        print(f'\tTop-5 err:', topk_err[1])     # type: ignore
+
+        train_log.write('epoch {0} - loss : {1}, top1_err : {2}, top5_err : {3}\n'.format(epoch, loss, topk_err[0], topk_err[1]))
+
+        loss, topk_err = validate(val_loader, model, [loss_fn, topk_err_fn])
+        print(f'\tLoss:     ', loss)
+        print(f'\tTop-1 err:', topk_err[0])     # type: ignore
+        print(f'\tTop-5 err:', topk_err[1])     # type: ignore
+
+        valid_log.write('epoch {0} - loss : {1}, top1_err : {2}, top5_err : {3}\n'.format(epoch, loss, topk_err[0], topk_err[1]))
+
         scheduler.step()
+        print()
 
 
 if __name__ == '__main__':
