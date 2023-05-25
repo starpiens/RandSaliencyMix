@@ -52,11 +52,11 @@ def saliency_mix(inp, tar, beta):
     # Generate mixed sample
     lam = np.random.beta(beta, beta)
     rand_index = torch.randperm(inp.shape[0])
-    tar_a = tar # inp의 label값 tar_a : target
-    tar_b = tar[rand_index] # inp의 label값 tar_a를 rand_index의 perm order대로 sort : source
+    tar_a = tar 
+    tar_b = tar[rand_index] 
     bbx1, bby1, bbx2, bby2, Is, Ps = saliency_bbox(inp[rand_index[0]], lam)
     
-    # Corr : Salient Region Sum
+    # Corr : Salient Region Sum of inp images
     It, Pt = [], []
     for inp_img in inp:
         temp_It, temp_Pt = saliency_sum(inp_img, bbx1, bby1, bbx2, bby2, lam)
@@ -65,15 +65,12 @@ def saliency_mix(inp, tar, beta):
 
     inp[:, :, bbx1:bbx2, bby1:bby2] = inp[rand_index, :, bbx1:bbx2, bby1:bby2]
 
-    # Adjust lambda to exactly match pixel ratio
-    lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (inp.shape[-1] * inp.shape[-2]))
-
     # # augmented sample label Ya = Cs * Ys + Ct * Yt
     Cs = Ps / Is
     Ct = [1 - (Pt[i] / It[i]) for i in range(len(Pt))]
 
     # normalization : Cs + Ct = 1
-    # norm_Cs = Cs / (Cs + Ct)
-    # norm_Ct = [Ct[i] / (Cs + Ct[i]) for i in range(len(Ct))]
+    norm_Cs = Cs / (Cs + Ct)
+    norm_Ct = [Ct[i] / (Cs + Ct[i]) for i in range(len(Ct))]
 
     return inp, tar_a, tar_b, Cs, Ct
