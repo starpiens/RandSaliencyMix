@@ -1,12 +1,13 @@
-import torch
+from torch import Tensor
 
 
 class AverageMeter:
     """Computes and stores the average and current value."""
+
     def __init__(self):
         self.val = 0
         self.sum = 0
-        self.avg = 0
+        self.avg = 0.0
         self.cnt = 0
 
     def reset(self):
@@ -23,7 +24,7 @@ class TopkError:
     def __init__(self, k: int = 1):
         self.k = k
 
-    def __call__(self, out: torch.Tensor, tar: torch.Tensor):
+    def __call__(self, out: Tensor, tar: Tensor) -> float:
         batch_size = out.shape[0]
         _, pred = out.topk(self.k)
         num_correct = 0

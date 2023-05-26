@@ -1,7 +1,7 @@
 from .dataset import ImageNet
-from .salmix import saliency_mix
+from .augment import SaliencyMix
 
 __all__ = [
     'ImageNet',
-    'saliency_mix',
+    'SaliencyMix',
 ]
