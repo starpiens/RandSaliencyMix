@@ -4,3 +4,4 @@ pyyaml
 tqdm
 opencv-python
 opencv-contrib-python
+tensorboard
