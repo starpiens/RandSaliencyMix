@@ -43,7 +43,7 @@ optimizer:
 scheduler:
   name: StepLR
   args:
-    step_size: 30
+    step_size: 75
     gamma: 0.1
 
 loss: 
