@@ -1,8 +1,9 @@
 from .dataset import ImageNet
-from .augment import SaliencyMix, SaliencyMixFixed
+from .augment import ErrorMix, SaliencyMix, SaliencyMixFixed
 
 __all__ = [
-    'ImageNet',
-    'SaliencyMix',
-    'SaliencyMixFixed',
+    "ErrorMix",
+    "ImageNet",
+    "SaliencyMix",
+    "SaliencyMixFixed",
 ]
