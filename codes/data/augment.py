@@ -92,7 +92,7 @@ class ErrorMix:
         num_items = inp.shape[0]
         labels = tar.argmax(1)
         for paste_idx in range(num_items):
-            prob = 1 - self.error_matrix[paste_idx, labels].to(torch.float64)
+            prob = 1 - self.error_matrix[labels[paste_idx], labels].to(torch.float64)
             prob /= prob.sum()
             copy_idx = np.random.choice(num_items, p=prob)
             lam = np.random.beta(self.beta, self.beta)
