@@ -167,6 +167,8 @@ class ErrorMix:
 
     @torch.no_grad()
     def update_error_matrix(self, out: Tensor, tar: Tensor) -> None:
+        out = out.cpu()
+        tar = tar.cpu()
         num_items = out.shape[0]
         diff_matrix = (out - tar).abs()
         for i in range(num_items):
