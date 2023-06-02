@@ -32,7 +32,7 @@ augment:
   args:
     beta: 1.0
     num_classes: 200
-    exp_weight: 1.0
+    exp_weight: 0.5
 
 optimizer:
   name: SGD

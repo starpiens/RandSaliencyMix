@@ -113,17 +113,21 @@ class ErrorMix:
         self.beta = beta
         self.num_classes = num_classes
         self.exp_weight = exp_weight
-        self.error_matrix = torch.full((num_classes, num_classes), 1 / num_classes)
+        self.error_matrix = np.full(
+            (num_classes, num_classes), 1 / num_classes, dtype=np.float64
+        )
+        self.eps = 10**-12
 
     def __call__(
         self, images: Tensor, labels: Tensor, sal_maps: ndarray
     ) -> tuple[Tensor, Tensor]:
         num_items = images.shape[0]
-        labels = labels.argmax(1)
+        labels_idx = labels.argmax(1)
 
         for paste_idx in range(num_items):
             # Pick an index to be copied.
-            prob = 1 - self.error_matrix[labels[paste_idx], labels].to(torch.float64)
+            prob = 1 - self.error_matrix[labels_idx[paste_idx], labels_idx]
+            prob += self.eps
             prob /= prob.sum()
             copy_idx = np.random.choice(num_items, p=prob)
 
@@ -137,12 +141,15 @@ class ErrorMix:
 
     @torch.no_grad()
     def update_error_matrix(self, outputs: Tensor, labels: Tensor) -> None:
-        outputs = outputs.cpu()
-        labels = labels.cpu()
-        num_items = outputs.shape[0]
-        diff_matrix = (outputs - labels).abs()
+        _outputs: ndarray = outputs.cpu().numpy()
+        _outputs -= _outputs.min(1, keepdims=True)
+        _outputs /= _outputs.sum(1, keepdims=True)
+        _labels: ndarray = labels.cpu().numpy()
+        diff_matrix = np.absolute(_outputs - _labels)
+
+        num_items = _outputs.shape[0]
         for i in range(num_items):
-            label_index = labels[i].argmax()
+            label_index = _labels[i].argmax()
             self.error_matrix[label_index, :] = (
                 self.exp_weight * diff_matrix[i, :]
                 + (1 - self.exp_weight) * self.error_matrix[label_index, :]
