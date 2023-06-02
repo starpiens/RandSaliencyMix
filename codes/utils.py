@@ -24,12 +24,11 @@ class TopkError:
     def __init__(self, k: int = 1):
         self.k = k
 
-    def __call__(self, out: Tensor, tar: Tensor) -> float:
-        batch_size = out.shape[0]
-        _, pred = out.topk(self.k)
-        num_correct = 0
-        for i in range(batch_size):
-            num_correct += tar[i][pred[i]].sum().item()
+    def __call__(self, output: Tensor, label: Tensor) -> float:
+        batch_size = output.shape[0]
+        label = label.argmax(1, keepdim=True)
+        _, pred = output.topk(self.k, dim=1)
+        num_correct = (label == pred).sum()
         num_wrong = batch_size - num_correct
         error = 100 * num_wrong / batch_size
         return error
