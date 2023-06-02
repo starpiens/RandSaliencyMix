@@ -2,6 +2,7 @@ import torch
 from torch.utils.data import Dataset
 import numpy as np
 import cv2
+from skimage.util import random_noise
 
 
 def saliency_bbox(img, lam):
@@ -156,8 +157,15 @@ def saliency_mix(inp, tar, beta):
     tar_b = tar[rand_index]
     #bbx1, bby1, bbx2, bby2 = saliency_bbox(inp[rand_index[0]], lam)
     #bbx1, bby1, bbx2, bby2 = threshold_rand_saliency_bbox(inp[rand_index[0]], lam)
-    #bbx1, bby1, bbx2, bby2, K = local_mean_saliency_bbox(inp[rand_index[0]], lam)
-    bbx1, bby1, bbx2, bby2 = ramdomly_selected_threshold_saliency_bbox(inp[rand_index[0]], lam)
+    bbx1, bby1, bbx2, bby2, K = local_mean_saliency_bbox(inp[rand_index[0]], lam)
+    #bbx1, bby1, bbx2, bby2 = ramdomly_selected_threshold_saliency_bbox(inp[rand_index[0]], lam)
+    
+    # add patch gaussian for robustness and accuracy
+    std_dev = 0.2
+    patch = inp[rand_index, :, bbx1:bbx2, bby1:bby2]
+    if patch.numel() != 0:
+        gaussian_patch = random_noise(patch, mode='gaussian', var=std_dev**2, clip=True)
+        inp[:, :, bbx1:bbx2, bby1:bby2] = torch.tensor(gaussian_patch)
     
     inp[:, :, bbx1:bbx2, bby1:bby2] = inp[rand_index, :, bbx1:bbx2, bby1:bby2]
 
