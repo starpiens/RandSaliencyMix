@@ -1,4 +1,3 @@
-import queue
 from multiprocessing import Queue, Process
 
 import torch
@@ -6,42 +5,6 @@ import numpy as np
 import cv2
 from torch import Tensor
 from numpy import ndarray
-
-
-def _compute_saliency_maps(imgs: Tensor, num_workers=16):
-    def _worker(idx, imgs, result_queue):
-        computer = cv2.saliency.StaticSaliencyFineGrained_create()
-        result = np.zeros(imgs.shape[:-1], dtype="uint8")
-        num_imgs = imgs.shape[0]
-        for i in range(num_imgs):
-            (success, saliency_map) = computer.computeSaliency(imgs[i])
-            saliency_map = (saliency_map * 255).astype("uint8")
-            result[i] = saliency_map
-        result_queue.put((idx, result))
-
-    imgs = imgs.cpu().numpy().transpose(0, 2, 3, 1)
-    num_imgs = imgs.shape[0]
-    batch_size = num_imgs // num_workers
-    assert num_imgs % num_workers == 0
-
-    result_queue = Queue()
-    processes = []
-    for i in range(num_workers):
-        imgs_batch = imgs[i * batch_size : (i + 1) * batch_size, ...]
-        p = Process(target=_worker, args=(i, imgs_batch, result_queue))
-        processes.append(p)
-        p.start()
-
-    results = []
-    for _ in range(num_workers):
-        results.append(result_queue.get(timeout=2))
-    results.sort(key=lambda r: r[0])
-    results = np.concatenate([r[1] for r in results], axis=0)
-
-    for p in processes:
-        p.join()
-
-    return results
 
 
 def _pick_most_salient_pixel(
@@ -70,23 +33,25 @@ class SaliencyMix:
         self.beta = beta
 
     @torch.no_grad()
-    def __call__(self, inp: Tensor, tar: Tensor) -> tuple[Tensor, Tensor]:
+    def __call__(self, images: Tensor, labels: Tensor) -> tuple[Tensor, Tensor]:
         # Generate mixed sample
         lam = np.random.beta(self.beta, self.beta)
-        rand_index = torch.randperm(inp.shape[0])
-        tar_a = tar
-        tar_b = tar[rand_index]
-        bbx1, bby1, bbx2, bby2 = self._saliency_bbox(inp[rand_index[0]], lam)
-        inp[:, :, bbx1:bbx2, bby1:bby2] = inp[rand_index, :, bbx1:bbx2, bby1:bby2]
+        rand_index = torch.randperm(images.shape[0])
+        tar_a = labels
+        tar_b = labels[rand_index]
+        bbx1, bby1, bbx2, bby2 = self._saliency_bbox(images[rand_index[0]], lam)
+        images[:, :, bbx1:bbx2, bby1:bby2] = images[rand_index, :, bbx1:bbx2, bby1:bby2]
         # Adjust lambda to exactly match pixel ratio
-        lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (inp.shape[-1] * inp.shape[-2]))
+        lam = 1 - (
+            (bbx2 - bbx1) * (bby2 - bby1) / (images.shape[-1] * images.shape[-2])
+        )
         # Compute output
-        inp_var = torch.autograd.Variable(inp, requires_grad=True)
-        tar = tar_a * lam + tar_b * (1 - lam)
-        return inp_var, tar
+        inp_var = torch.autograd.Variable(images, requires_grad=True)
+        labels = tar_a * lam + tar_b * (1 - lam)
+        return inp_var, labels
 
-    def _saliency_bbox(self, img: Tensor, lam: float) -> tuple[int, int, int, int]:
-        size = img.size()
+    def _saliency_bbox(self, image: Tensor, lam: float) -> tuple[int, int, int, int]:
+        size = image.size()
         W = size[1]
         H = size[2]
         cut_rat = np.sqrt(1.0 - lam)
@@ -95,7 +60,7 @@ class SaliencyMix:
 
         # Initialize OpenCV's static fine grained saliency detector
         # and compute the saliency map.
-        temp_img = img.cpu().numpy().transpose(1, 2, 0)
+        temp_img = image.cpu().numpy().transpose(1, 2, 0)
         saliency = cv2.saliency.StaticSaliencyFineGrained_create()
         (success, saliencyMap) = saliency.computeSaliency(temp_img)
         saliencyMap = (saliencyMap * 255).astype("uint8")
@@ -122,19 +87,23 @@ class SaliencyMixFixed:
         self.beta = beta
 
     @torch.no_grad()
-    def __call__(self, inp: Tensor, tar: Tensor) -> tuple[Tensor, Tensor]:
-        num_items = inp.shape[0]
-        saliency_maps = _compute_saliency_maps(inp)
+    def __call__(
+        self, images: Tensor, labels: Tensor, sal_maps: ndarray
+    ) -> tuple[Tensor, Tensor]:
+        num_items = images.shape[0]
 
         for paste_idx in range(num_items):
             copy_idx = np.random.randint(num_items)
             lam = np.random.beta(self.beta, self.beta)
-            x1, y1, x2, y2 = _pick_most_salient_pixel(saliency_maps[copy_idx], lam)
-            inp[paste_idx, :, x1:x2, y1:y2] = inp[copy_idx, :, x1:x2, y1:y2]
-            lam = 1 - ((x2 - x1) * (y2 - y1) / (inp.shape[-1] * inp.shape[-2]))
-            tar[paste_idx] = tar[paste_idx] * lam + tar[copy_idx] * (1 - lam)
+            r1, c1, r2, c2 = _pick_most_salient_pixel(sal_maps[copy_idx], lam)
+            images[paste_idx, :, r1:r2, c1:c2] = images[copy_idx, :, r1:r2, c1:c2]
 
-        return inp, tar
+            copy_area = (r2 - r1) * (c2 - c1)
+            total_area = images.shape[-1] * images.shape[-2]
+            lam = 1 - copy_area / total_area
+            labels[paste_idx] = labels[paste_idx] * lam + labels[copy_idx] * (1 - lam)
+
+        return images, labels
 
 
 class ErrorMix:
@@ -146,10 +115,11 @@ class ErrorMix:
         self.exp_weight = exp_weight
         self.error_matrix = torch.full((num_classes, num_classes), 1 / num_classes)
 
-    def __call__(self, inp: Tensor, tar: Tensor) -> tuple[Tensor, Tensor]:
-        num_items = inp.shape[0]
-        labels = tar.argmax(1)
-        saliency_maps = _compute_saliency_maps(inp)
+    def __call__(
+        self, images: Tensor, labels: Tensor, sal_maps: ndarray
+    ) -> tuple[Tensor, Tensor]:
+        num_items = images.shape[0]
+        labels = labels.argmax(1)
 
         for paste_idx in range(num_items):
             # Pick an index to be copied.
@@ -158,22 +128,22 @@ class ErrorMix:
             copy_idx = np.random.choice(num_items, p=prob)
 
             lam = np.random.beta(self.beta, self.beta)
-            x1, y1, x2, y2 = _pick_most_salient_pixel(saliency_maps[copy_idx], lam)
-            inp[paste_idx, :, x1:x2, y1:y2] = inp[copy_idx, :, x1:x2, y1:y2]
-            lam = 1 - ((x2 - x1) * (y2 - y1) / (inp.shape[-1] * inp.shape[-2]))
-            tar[paste_idx] = tar[paste_idx] * lam + tar[copy_idx] * (1 - lam)
+            x1, y1, x2, y2 = _pick_most_salient_pixel(sal_maps[copy_idx], lam)
+            images[paste_idx, :, x1:x2, y1:y2] = images[copy_idx, :, x1:x2, y1:y2]
+            lam = 1 - ((x2 - x1) * (y2 - y1) / (images.shape[-1] * images.shape[-2]))
+            labels[paste_idx] = labels[paste_idx] * lam + labels[copy_idx] * (1 - lam)
 
-        return inp, tar
+        return images, labels
 
     @torch.no_grad()
-    def update_error_matrix(self, out: Tensor, tar: Tensor) -> None:
-        out = out.cpu()
-        tar = tar.cpu()
-        num_items = out.shape[0]
-        diff_matrix = (out - tar).abs()
+    def update_error_matrix(self, outputs: Tensor, labels: Tensor) -> None:
+        outputs = outputs.cpu()
+        labels = labels.cpu()
+        num_items = outputs.shape[0]
+        diff_matrix = (outputs - labels).abs()
         for i in range(num_items):
-            label = tar[i].argmax()
-            self.error_matrix[label, :] = (
+            label_index = labels[i].argmax()
+            self.error_matrix[label_index, :] = (
                 self.exp_weight * diff_matrix[i, :]
-                + (1 - self.exp_weight) * self.error_matrix[label, :]
+                + (1 - self.exp_weight) * self.error_matrix[label_index, :]
             )

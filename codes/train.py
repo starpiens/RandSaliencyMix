@@ -41,15 +41,17 @@ def train(
     optim: Optimizer,
     loss_fn: Callable[[Tensor, Tensor], Tensor],
     criterion_fns: List[Callable[[Tensor, Tensor], int | float]] = [],
-    augment_fn: Callable[[Tensor, Tensor], Tuple[Tensor, Tensor]] | None = None,
+    augment_fn: Callable[..., Tuple[Tensor, Tensor]] | None = None,
 ) -> List[float]:
     model.train()
     results = [AverageMeter() for _ in range(len(criterion_fns))]
 
-    for idx, (inp, tar) in enumerate(tqdm.tqdm(loader, desc="Training  ")):
+    for idx, data in enumerate(tqdm.tqdm(loader, desc="Training  ")):
         # Perform augmentation.
         if augment_fn is not None:
-            inp, tar = augment_fn(inp, tar)
+            inp, tar = augment_fn(*data)
+        else:
+            inp, tar = data[0:2]
 
         # Forward pass.
         inp = inp.cuda()
@@ -281,8 +283,8 @@ def main():
 
         # Validate.
         loss, top1_err, top5_err = validate(
-            val_loader, 
-            model, 
+            val_loader,
+            model,
             criterion_fns=[loss_fn, top1_err_fn, top5_err_fn],
             error_mix_fn=(aug_fn if isinstance(aug_fn, ErrorMix) else None),
         )

@@ -11,7 +11,7 @@ train_dataloader:
     batch_size: 256
     drop_last: False
   dataset:
-    name: ImageNet
+    name: ImageNetWithSaliencyMap
     args:
       path: ~/dataset/tiny-imagenet/train
       train: True
