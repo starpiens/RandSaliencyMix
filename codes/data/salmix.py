@@ -101,8 +101,11 @@ def local_mean_saliency_bbox(img, lam):
         
     best = np.argmax(mean_values)
     f_bbx1,f_bbx2,f_bby1,f_bby2 = bboxes[best]
+    
+    # add Label for Less-saliency : K * y1 + (1 - lambda) * y2   => degree of less saliency for y1
+    K = mean_values[best] / np.sum(mean_values)
         
-    return f_bbx1, f_bby1, f_bbx2, f_bby2
+    return f_bbx1, f_bby1, f_bbx2, f_bby2, K
 
 def saliency_mix(inp, tar, beta):
     # Generate mixed sample
@@ -112,11 +115,11 @@ def saliency_mix(inp, tar, beta):
     tar_b = tar[rand_index]
     #bbx1, bby1, bbx2, bby2 = saliency_bbox(inp[rand_index[0]], lam)
     bbx1, bby1, bbx2, bby2 = threshold_rand_saliency_bbox(inp[rand_index[0]], lam)
-    bbx1, bby1, bbx2, bby2 = local_mean_saliency_bbox(inp[rand_index[0]], lam)
+    bbx1, bby1, bbx2, bby2, K = local_mean_saliency_bbox(inp[rand_index[0]], lam)
     
     inp[:, :, bbx1:bbx2, bby1:bby2] = inp[rand_index, :, bbx1:bbx2, bby1:bby2]
 
     # Adjust lambda to exactly match pixel ratio
     lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (inp.shape[-1] * inp.shape[-2]))
 
-    return inp, tar_a, tar_b, lam
+    return inp, tar_a, tar_b, lam, K
