@@ -193,8 +193,8 @@ class ErrorMix:
         saliency_map_ = saliencyMap.copy()
         saliency_map_[:cut_w//2,:]= False
         saliency_map_[:,:cut_h//2] = False
-        saliency_map_[width-cut_w//2:,:] = False
-        saliency_map_[:,height-cut_h//2:] = False
+        saliency_map_[W-cut_w//2:,:] = False
+        saliency_map_[:,H-cut_h//2:] = False
 
         x_y_indices = np.where(saliency_map_)
 
