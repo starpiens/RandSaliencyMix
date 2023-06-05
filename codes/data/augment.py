@@ -127,9 +127,12 @@ class ErrorMix:
         for paste_idx in range(num_items):
             # Pick an index to be copied.
             prob = 1 - self.error_matrix[labels_idx[paste_idx], labels_idx]
+            prob = np.delete(prob, paste_idx)
             prob += self.eps
             prob /= prob.sum()
-            copy_idx = np.random.choice(num_items, p=prob)
+            candidates = np.arange(num_items)
+            candidates = np.delete(candidates, paste_idx)
+            copy_idx = np.random.choice(candidates, p=prob)
 
             lam = np.random.beta(self.beta, self.beta)
             x1, y1, x2, y2 = _pick_most_salient_pixel(sal_maps[copy_idx], lam)
@@ -154,3 +157,4 @@ class ErrorMix:
                 self.exp_weight * diff_matrix[i, :]
                 + (1 - self.exp_weight) * self.error_matrix[label_index, :]
             )
+        return
