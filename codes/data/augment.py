@@ -157,4 +157,140 @@ class ErrorMix:
                 self.exp_weight * diff_matrix[i, :]
                 + (1 - self.exp_weight) * self.error_matrix[label_index, :]
             )
-        return
+    
+
+class local_mean_SaliencyMix:
+    """SaliencyMix implementation from the authors.
+    https://github.com/afm-shahab-uddin/SaliencyMix/
+    """
+
+    def __init__(self, beta: float) -> None:
+        self.beta = beta
+
+    @torch.no_grad()
+    def __call__(self, images: Tensor, labels: Tensor) -> tuple[Tensor, Tensor]:
+        # Generate mixed sample
+        lam = np.random.beta(self.beta, self.beta)
+        rand_index = torch.randperm(images.shape[0])
+        tar_a = labels
+        tar_b = labels[rand_index]
+        bbx1, bby1, bbx2, bby2 = self._saliency_bbox(images[rand_index[0]], lam)
+        images[:, :, bbx1:bbx2, bby1:bby2] = images[rand_index, :, bbx1:bbx2, bby1:bby2]
+        # Adjust lambda to exactly match pixel ratio
+        lam = 1 - (
+            (bbx2 - bbx1) * (bby2 - bby1) / (images.shape[-1] * images.shape[-2])
+        )
+        # Compute output
+        inp_var = torch.autograd.Variable(images, requires_grad=True)
+        labels = tar_a * lam + tar_b * (1 - lam)
+        return inp_var, labels
+
+    def _saliency_bbox(self, image: Tensor, lam: float) -> tuple[int, int, int, int]:
+        size = image.size()
+        W = size[1]
+        H = size[2]
+        cut_rat = np.sqrt(1.0 - lam)
+        cut_w = int(W * cut_rat)
+        cut_h = int(H * cut_rat)
+
+        # Initialize OpenCV's static fine grained saliency detector
+        # and compute the saliency map.
+        temp_img = image.cpu().numpy().transpose(1, 2, 0)
+        saliency = cv2.saliency.StaticSaliencyFineGrained_create()
+        (success, saliencyMap) = saliency.computeSaliency(temp_img)
+        saliencyMap = (saliencyMap * 255).astype("uint8")
+        
+        saliency_map_ = saliencyMap.copy()
+        saliency_map_[:cut_w//2,:]= False
+        saliency_map_[:,:cut_h//2] = False
+        saliency_map_[W-cut_w//2:,:] = False
+        saliency_map_[:,H-cut_h//2:] = False
+
+        x_y_indices = np.where(saliency_map_)
+
+        mean_values = []
+        bboxes = []
+        for i in range(10):
+            x_index = np.random.choice(len(x_y_indices[0]))
+            y_index = np.random.choice(len(x_y_indices[1]))
+            random_indices = (x_y_indices[0][x_index], x_y_indices[1][y_index])
+            x = random_indices[0]
+            y = random_indices[1]
+
+            bbx1 = int(np.clip(x - cut_w // 2, 0, W))
+            bby1 = int(np.clip(y - cut_h // 2, 0, H))
+            bbx2 = int(np.clip(x + cut_w // 2, 0, W))
+            bby2 = int(np.clip(y + cut_h // 2, 0, H))
+
+            bboxes.append([bbx1,bbx2,bby1,bby2])
+
+            mean_values.append(saliencyMap[bbx1:bbx2, bby1:bby2].mean())
+
+        best = np.argmax(mean_values)
+        f_bbx1,f_bbx2,f_bby1,f_bby2 = bboxes[best]
+
+        return bbx1, bby1, bbx2, bby2
+    
+    
+class noise_SaliencyMix:
+    """SaliencyMix implementation from the authors.
+    https://github.com/afm-shahab-uddin/SaliencyMix/
+    """
+
+    def __init__(self, beta: float) -> None:
+        self.beta = beta
+
+    @torch.no_grad()
+    def __call__(self, images: Tensor, labels: Tensor) -> tuple[Tensor, Tensor]:
+        # Generate mixed sample
+        lam = np.random.beta(self.beta, self.beta)
+        rand_index = torch.randperm(images.shape[0])
+        tar_a = labels
+        tar_b = labels[rand_index]
+        bbx1, bby1, bbx2, bby2 = self._saliency_bbox(images[rand_index[0]], lam)
+        
+        # gaussian noise patch
+        std_dev = 0.2
+        patch = images[rand_index, :, bbx1:bbx2, bby1:bby2]
+        if patch.numel() != 0:
+            gaussian_patch = random_noise(patch, mode='gaussian', var=std_dev**2, clip=True)
+            images[:, :, bbx1:bbx2, bby1:bby2] = torch.tensor(gaussian_patch)
+        else: 
+            images[:, :, bbx1:bbx2, bby1:bby2] = images[rand_index, :, bbx1:bbx2, bby1:bby2]
+            
+        # Adjust lambda to exactly match pixel ratio
+        lam = 1 - (
+            (bbx2 - bbx1) * (bby2 - bby1) / (images.shape[-1] * images.shape[-2])
+        )
+        # Compute output
+        inp_var = torch.autograd.Variable(images, requires_grad=True)
+        labels = tar_a * lam + tar_b * (1 - lam)
+        return inp_var, labels
+
+    def _saliency_bbox(self, image: Tensor, lam: float) -> tuple[int, int, int, int]:
+        size = image.size()
+        W = size[1]
+        H = size[2]
+        cut_rat = np.sqrt(1.0 - lam)
+        cut_w = int(W * cut_rat)
+        cut_h = int(H * cut_rat)
+
+        # Initialize OpenCV's static fine grained saliency detector
+        # and compute the saliency map.
+        temp_img = image.cpu().numpy().transpose(1, 2, 0)
+        saliency = cv2.saliency.StaticSaliencyFineGrained_create()
+        (success, saliencyMap) = saliency.computeSaliency(temp_img)
+        saliencyMap = (saliencyMap * 255).astype("uint8")
+
+        maximum_indices = np.unravel_index(
+            np.argmax(saliencyMap, axis=None), saliencyMap.shape
+        )
+        x = maximum_indices[0]
+        y = maximum_indices[1]
+
+        bbx1 = int(np.clip(x - cut_w // 2, 0, W))
+        bby1 = int(np.clip(y - cut_h // 2, 0, H))
+        bbx2 = int(np.clip(x + cut_w // 2, 0, W))
+        bby2 = int(np.clip(y + cut_h // 2, 0, H))
+
+        return bbx1, bby1, bbx2, bby2
