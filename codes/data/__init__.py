@@ -1,10 +1,18 @@
 from .dataset import ImageNet, ImageNetWithSaliencyMap
-from .augment import ErrorMix, SaliencyMix, SaliencyMixFixed
+from .augment import (
+    ErrorMix,
+    LocalMeanSaliencyMix,
+    NoiseSaliencyMix,
+    SaliencyMix,
+    SaliencyMixFixed,
+)
 
 __all__ = [
     "ErrorMix",
     "ImageNet",
-    'ImageNetWithSaliencyMap',
+    "ImageNetWithSaliencyMap",
+    "LocalMeanSaliencyMix",
+    "NoiseSaliencyMix",
     "SaliencyMix",
     "SaliencyMixFixed",
 ]

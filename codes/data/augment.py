@@ -253,7 +253,7 @@ class NoiseSaliencyMix:
         patch = images[rand_index, :, r1:r2, c1:c2]
         if patch.numel() != 0:
             gaussian_patch = random_noise(
-                patch, mode="gaussian", var=self.std_dev**2, clip=True
+                patch, mode="gaussian", var=self.std_dev**2, clip=False
             )
             images[:, :, r1:r2, c1:c2] = torch.tensor(gaussian_patch)
         else:
