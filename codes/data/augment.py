@@ -214,14 +214,14 @@ class local_mean_SaliencyMix:
 
             bboxes.append([bbx1,bbx2,bby1,bby2])
 
-            mean_values.append(saliency_map[bbx1:bbx2, bby1:bby2].mean())
+            mean_values.append(saliencyMap[bbx1:bbx2, bby1:bby2].mean())
 
         best = np.argmax(mean_values)
         f_bbx1,f_bbx2,f_bby1,f_bby2 = bboxes[best]
 
         return bbx1, bby1, bbx2, bby2
-
- 
+    
+    
 class noise_SaliencyMix:
     """SaliencyMix implementation from the authors.
     https://github.com/afm-shahab-uddin/SaliencyMix/
