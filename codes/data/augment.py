@@ -343,6 +343,45 @@ class NoiseSaliencyMix:
         # Compute output
         labels = tar_a * lam + tar_b * (1 - lam)
         return images, labels
+    
+    
+class NoiseSaliencyMixFixed:
+    def __init__(self, beta: float, std_dev=0.2) -> None:
+        self.beta = beta
+        self.std_dev = std_dev
+
+    @torch.no_grad()
+    def __call__(
+        self, images: Tensor, labels: Tensor, sal_maps: ndarray
+    ) -> tuple[Tensor, Tensor]:
+        num_items = images.shape[0]
+
+        for paste_idx in range(num_items):
+            copy_idx = np.random.randint(num_items)
+            lam = np.random.beta(self.beta, self.beta)
+            r1, c1, r2, c2 = _pick_most_salient_pixel(sal_maps[copy_idx], lam)
+
+        # gaussian noise patch
+        patch = images[copy_idx, :, r1:r2, c1:c2]
+        if patch.numel() != 0:
+            gaussian_patch = random_noise(
+                patch, mode="gaussian", var=self.std_dev**2, clip=False
+            )
+            images[paste_idx, :, r1:r2, c1:c2] = torch.tensor(gaussian_patch)
+        else:
+            images[paste_idx, :, r1:r2, c1:c2] = images[copy_idx, :, r1:r2, c1:c2]
+
+        # Adjust lambda to exactly match pixel ratio
+        copy_area = (r2 - r1) * (c2 - c1)
+        total_area = (images.shape[-1] * images.shape[-2])
+        lam = 1 - (copy_area / total_area)
+
+        # Compute output
+        labels[paste_idx] = labels[paste_idx] * lam + labels[copy_idx] * (1 - lam)
+        
+        return images, labels
+    
+    
 
 class randsalMix:
 
