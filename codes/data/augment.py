@@ -156,13 +156,15 @@ class randsalMix:
 
     def __call__(self, images: Tensor, labels: Tensor, sal_maps):
         num_items = images.shape[0]
+        temp_labels = labels
+        
         for paste_idx in range(num_items):
             copy_idx = np.random.randint(num_items)
             lam = np.random.beta(self.beta, self.beta)
             
             val = 0
             cx1, cy1, cx2, cy2, val = self.randsal_bbox(sal_maps[copy_idx], lam, val)
-            px1, py1, px2, py2, val =  self.randsal_bbox(sal_maps[copy_idx], lam, val)
+            px1, py1, px2, py2, val =  self.randsal_bbox(sal_maps[paste_idx], lam, val)
 
             if val == -1:
                 continue
@@ -171,7 +173,7 @@ class randsalMix:
             copy_area = (cx2 - cx1) * (cy2 - cy1)
             total_area = images.shape[-1] * images.shape[-2]
             lam = 1 - copy_area / total_area
-            labels[paste_idx] = labels[paste_idx] * lam + labels[copy_idx] * (1 - lam)
+            labels[paste_idx] = temp_labels[paste_idx] * lam + temp_labels[copy_idx] * (1 - lam)
 
         return images, labels
 
