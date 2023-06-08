@@ -1,8 +1,11 @@
-from .preprocess import ColorJitter, Lighting
-from .salmix import saliency_mix
+from .dataset import ImageNet, ImageNetWithSaliencyMap
+from .augment import ErrorMix, SaliencyMix, SaliencyMixFixed, SaliencyLabelMix
 
 __all__ = [
-    'ColorJitter',
-    'Lighting',
-    'saliency_mix',
+    "ErrorMix",
+    "ImageNet",
+    'ImageNetWithSaliencyMap',
+    "SaliencyMix",
+    "SaliencyMixFixed",
+    "SaliencyLabelMix",
 ]
