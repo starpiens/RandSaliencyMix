@@ -30,7 +30,7 @@ val_dataloader:
 augment:
   name: NoiseSaliencyMix
   args:
-    beta: 1.0
+    beta: 2.0
     std_dev: 0.2
 
 optimizer:

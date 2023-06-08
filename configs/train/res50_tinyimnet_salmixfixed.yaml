@@ -30,7 +30,7 @@ val_dataloader:
 augment:
   name: SaliencyMixFixed
   args:
-    beta: 1.0
+    beta: 2.0
 
 optimizer:
   name: SGD

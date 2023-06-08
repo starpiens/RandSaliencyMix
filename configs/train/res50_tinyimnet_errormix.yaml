@@ -30,7 +30,7 @@ val_dataloader:
 augment:
   name: ErrorMix
   args:
-    beta: 1.0
+    beta: 2.0
     num_classes: 200
     exp_weight: 0.5
 
