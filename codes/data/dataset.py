@@ -1,5 +1,6 @@
 import torch
 import cv2
+import numpy as np
 from torch import Tensor
 from torch.nn.functional import one_hot
 from torchvision import transforms, datasets
@@ -76,9 +77,11 @@ class ImageNetWithSaliencyMap(ImageNet):
 
     def __getitem__(self, index: int) -> tuple[Tensor, Tensor, ndarray]:
         image, label = super().__getitem__(index)
-        success, saliency_map = self.saliency_computer.computeSaliency(
-            image.numpy().transpose(1, 2, 0)
-        )
+        image_arr = image.numpy().transpose(1, 2, 0)
+        image_arr = (
+            (image_arr - image_arr.min()) / (image_arr.max() - image_arr.min()) * 255
+        ).astype(np.uint8)
+        success, saliency_map = self.saliency_computer.computeSaliency(image_arr)
         if not success:
             raise RuntimeError("Failed to compute saliency map.")
         saliency_map = (saliency_map * 255).astype("uint8")
