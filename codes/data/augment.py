@@ -216,3 +216,82 @@ class randsalMix:
       
         else:
             return -1, -1, -1, -1, -1
+        
+        
+class randsalwithlabelMix:
+    def __init__(self, beta: float) -> None:
+        self.beta = beta
+
+    def __call__(self, images: Tensor, labels: Tensor, sal_maps):
+        num_items = images.shape[0]
+        temp_labels = copy.deepcopy(labels)
+        rand_index = torch.randperm(num_items)
+        for paste_idx in range(num_items):
+            #copy_idx = np.random.randint(num_items)
+            copy_idx = rand_index[paste_idx]
+            lam = np.random.beta(self.beta, self.beta)
+            
+            val = 0
+            cx1, cy1, cx2, cy2, val = self.randsal_bbox(sal_maps[copy_idx], lam, val)
+            px1, py1, px2, py2, val =  self.randsal_bbox(sal_maps[paste_idx], lam, val)
+
+            if val == -1:
+                continue
+
+            images[paste_idx, :, px1:px2, py1:py2] = images[copy_idx, :, cx1:cx2, cy1:cy2]
+
+            Ss = sal_maps[copy_idx]
+            Is = torch.sum(Ss)
+            Ps = torch.sum(Ss[cx1 : cx2, cy1 : cy2])
+            Cs = Ps / Is
+
+            St = sal_maps[paste_idx]
+            It = torch.sum(St)
+            Pt = torch.sum(St[px1 : px2, py1 : py2])
+            Ct = 1 - (Pt / It)
+
+            labels[paste_idx] = temp_labels[copy_idx] * Cs + temp_labels[paste_idx] * Ct
+
+        return images, labels
+
+
+    def randsal_bbox(self, saliency_map, lam, val):
+        size = saliency_map.size()
+        cut_rat = np.sqrt(1. - lam)
+        cut_w = int(size[0] * cut_rat)
+        cut_h = int(size[1] * cut_rat)
+
+        saliency_map[:cut_w//2, :] = 0.0
+        saliency_map[-cut_w//2:, :] = 0.0
+        saliency_map[:, :cut_h//2] = 0.0
+        saliency_map[:, -cut_h//2:] = 0.0
+
+        #saliency_map = saliency_map > 100
+        saliency_map_1d = np.array(saliency_map).flatten()
+        s_nonzero = saliency_map_1d[saliency_map_1d != 0]
+        s_sum = np.sum(s_nonzero)
+        prob = np.zeros_like(saliency_map_1d, dtype=float)
+        #copy
+        if val == 0:
+            if s_sum != 0:
+                prob[saliency_map_1d != 0] = s_nonzero / s_sum
+            val = 1
+        #paste
+        elif val == 1:
+            if s_sum != 0:
+                prob[saliency_map_1d != 0] = (255 - s_nonzero) / (255 - s_nonzero).sum()
+               
+        if prob.sum() == 1:
+            pick = np.random.choice(len(saliency_map_1d), p=prob)
+            pick_idx = np.unravel_index(pick, saliency_map.shape)
+   
+            cx, cy = int(pick_idx[0]), int(pick_idx[1])
+            bbx1 = cx - cut_w // 2
+            bby1 = cy - cut_h // 2
+            bbx2 = cx + cut_w // 2
+            bby2 = cy + cut_h // 2
+
+            return bbx1, bby1, bbx2, bby2, val
+      
+        else:
+            return -1, -1, -1, -1, -1
