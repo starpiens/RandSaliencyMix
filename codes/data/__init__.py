@@ -7,6 +7,7 @@ from .augment import (
     LocalMeanSaliencyMixFixed,
     NoiseSaliencyMix,
     NoiseSaliencyMixFixed,
+    RandSaliencyMix,
 )
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "LocalMeanSaliencyMixFixed",
     "NoiseSaliencyMix",
     "NoiseSaliencyMixFixed",
+    "RandSaliencyMix",
 ]
