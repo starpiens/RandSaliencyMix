@@ -90,21 +90,25 @@ class SaliencyMixFixed:
         self, images: Tensor, labels: Tensor, sal_maps: ndarray
     ) -> tuple[Tensor, Tensor]:
         num_items = images.shape[0]
+        copy_indices = np.random.permutation(num_items)
+        new_images = torch.zeros_like(images)
+        new_labels = torch.zeros_like(labels)
 
-        for paste_idx in range(num_items):
-            copy_idx = np.random.randint(num_items)
+        for paste_idx, copy_idx in enumerate(copy_indices):
             lam = np.random.beta(self.beta, self.beta)
             r1, c1, r2, c2 = _pick_most_salient_pixel(sal_maps[copy_idx], lam)
-            images[paste_idx, :, r1:r2, c1:c2] = images[copy_idx, :, r1:r2, c1:c2]
 
-            # Adjust lambda to exactly match pixel ratio
+            # Adjust lambda to exactly match pixel ratio.
             copy_area = (r2 - r1) * (c2 - c1)
             total_area = images.shape[-1] * images.shape[-2]
             lam = 1 - copy_area / total_area
-            
-            labels[paste_idx] = labels[paste_idx] * lam + labels[copy_idx] * (1 - lam)
 
-        return images, labels
+            new_images[paste_idx, ...] = images[paste_idx, ...]
+            new_images[paste_idx, :, r1:r2, c1:c2] = images[copy_idx, :, r1:r2, c1:c2]
+            new_labels[paste_idx, :] = labels[paste_idx, :] * lam
+            new_labels[paste_idx, :] += labels[copy_idx, :] * (1 - lam)
+
+        return new_images, new_labels
 
 
 class ErrorMix:
@@ -123,37 +127,44 @@ class ErrorMix:
         self, images: Tensor, labels: Tensor, sal_maps: ndarray
     ) -> tuple[Tensor, Tensor]:
         num_items = images.shape[0]
+        new_images = torch.zeros_like(images)
+        new_labels = torch.zeros_like(labels)
         labels_idx = labels.argmax(1)
 
         for paste_idx in range(num_items):
             # Pick an index to be copied.
             prob = 1 - self.error_matrix[labels_idx[paste_idx], labels_idx]
-            prob = np.delete(prob, paste_idx)
             prob += self.eps
+            prob[paste_idx] = 0
             prob /= prob.sum()
-            candidates = np.arange(num_items)
-            candidates = np.delete(candidates, paste_idx)
-            copy_idx = np.random.choice(candidates, p=prob)
+            copy_idx = np.random.choice(num_items, p=prob)
 
             lam = np.random.beta(self.beta, self.beta)
-            x1, y1, x2, y2 = _pick_most_salient_pixel(sal_maps[copy_idx], lam)
-            images[paste_idx, :, x1:x2, y1:y2] = images[copy_idx, :, x1:x2, y1:y2]
-            lam = 1 - ((x2 - x1) * (y2 - y1) / (images.shape[-1] * images.shape[-2]))
-            labels[paste_idx] = labels[paste_idx] * lam + labels[copy_idx] * (1 - lam)
+            r1, c1, r2, c2 = _pick_most_salient_pixel(sal_maps[copy_idx], lam)
 
-        return images, labels
+            # Adjust lambda to exactly match pixel ratio.
+            copy_area = (r2 - r1) * (c2 - c1)
+            total_area = images.shape[-1] * images.shape[-2]
+            lam = 1 - copy_area / total_area
+
+            new_images[paste_idx, ...] = images[paste_idx, ...]
+            new_images[paste_idx, :, r1:r2, c1:c2] = images[copy_idx, :, r1:r2, c1:c2]
+            new_labels[paste_idx, :] = labels[paste_idx, :] * lam
+            new_labels[paste_idx, :] += labels[copy_idx, :] * (1 - lam)
+
+        return new_images, new_labels
 
     @torch.no_grad()
     def update_error_matrix(self, outputs: Tensor, labels: Tensor) -> None:
-        _outputs: ndarray = outputs.cpu().numpy()
-        _outputs -= _outputs.min(1, keepdims=True)
-        _outputs /= _outputs.sum(1, keepdims=True)
-        _labels: ndarray = labels.cpu().numpy()
-        diff_matrix = np.absolute(_outputs - _labels)
+        labels_arr = labels.cpu().numpy()  # Assuming already normalized
+        outputs_arr = outputs.cpu().numpy()  # Needs to be normalized
+        outputs_arr -= outputs_arr.min(1, keepdims=True)
+        outputs_arr /= outputs_arr.sum(1, keepdims=True)
+        diff_matrix = np.absolute(outputs_arr - labels_arr)
 
-        num_items = _outputs.shape[0]
+        num_items = outputs_arr.shape[0]
         for i in range(num_items):
-            label_index = _labels[i].argmax()
+            label_index = labels_arr[i].argmax()
             self.error_matrix[label_index, :] = (
                 self.exp_weight * diff_matrix[i, :]
                 + (1 - self.exp_weight) * self.error_matrix[label_index, :]
@@ -337,7 +348,7 @@ class NoiseSaliencyMix:
 
         # Adjust lambda to exactly match pixel ratio
         copy_area = (r2 - r1) * (c2 - c1)
-        total_area = (images.shape[-1] * images.shape[-2])
+        total_area = images.shape[-1] * images.shape[-2]
         lam = 1 - (copy_area / total_area)
 
         # Compute output
