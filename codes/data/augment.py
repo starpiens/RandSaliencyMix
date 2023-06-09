@@ -29,16 +29,19 @@ class SaliencyLabelMix:
         
         inp[:, :, bbx1:bbx2, bby1:bby2] = inp[rand_index, :, bbx1:bbx2, bby1:bby2]
         
+        # Perform SaliencyLabelMix with prob 0.5
         Cs = Ps / Is
-        temp_tar = tar
-        for index, inp_img in enumerate(inp): 
-            St = sal_maps[index]
-            It = torch.sum(St)
-            Pt = torch.sum(St[bbx1 : bbx2, bby1 : bby2])
-            Ct = 1 - (Pt / It)
-            # Define new label definition
-            tar[index] = tar_src * Cs + temp_tar[index] * Ct
+        prob = np.random.rand(1)
+        if prob > 0.5:
+            for index, inp_img in enumerate(inp): 
+                St = sal_maps[index]
+                It = torch.sum(St)
+                Pt = torch.sum(St[bbx1 : bbx2, bby1 : bby2])
+                Ct = 1 - (Pt / It)
+                # Define new label definition
+                tar[index] = tar_src * Cs + tar[index] * Ct
 
+        # Else: don't perform SaliencyLabelMix
         inp_var = torch.autograd.Variable(inp, requires_grad=True)
         
         return inp_var, tar
