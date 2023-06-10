@@ -31,6 +31,7 @@ augment:
   name: RandSaliencyMix
   args:
     beta: 2.0
+    use_sal_labelmix: True
 
 optimizer:
   name: SGD

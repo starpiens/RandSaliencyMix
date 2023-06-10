@@ -7,7 +7,7 @@ from skimage.util import random_noise
 
 
 def _pick_most_salient_pixel(
-    saliency_map: ndarray, lam: float
+    saliency_map: Tensor, lam: float
 ) -> tuple[int, int, int, int]:
     h, w = saliency_map.shape
     cut_ratio = np.sqrt(1.0 - lam)
@@ -87,7 +87,7 @@ class SaliencyMixFixed:
 
     @torch.no_grad()
     def __call__(
-        self, images: Tensor, labels: Tensor, sal_maps: ndarray
+        self, images: Tensor, labels: Tensor, sal_maps: Tensor
     ) -> tuple[Tensor, Tensor]:
         num_items = images.shape[0]
         copy_indices = np.random.permutation(num_items)
@@ -124,7 +124,7 @@ class ErrorMix:
         self.eps = 10**-12
 
     def __call__(
-        self, images: Tensor, labels: Tensor, sal_maps: ndarray
+        self, images: Tensor, labels: Tensor, sal_maps: Tensor
     ) -> tuple[Tensor, Tensor]:
         num_items = images.shape[0]
         new_images = torch.zeros_like(images)
@@ -326,7 +326,7 @@ class NoiseSaliencyMix:
 
     @torch.no_grad()
     def __call__(
-        self, images: Tensor, labels: Tensor, sal_maps: ndarray
+        self, images: Tensor, labels: Tensor, sal_maps: Tensor
     ) -> tuple[Tensor, Tensor]:
         # Generate mixed sample
         lam = np.random.beta(self.beta, self.beta)
@@ -362,7 +362,7 @@ class NoiseSaliencyMixFixed:
 
     @torch.no_grad()
     def __call__(
-        self, images: Tensor, labels: Tensor, sal_maps: ndarray
+        self, images: Tensor, labels: Tensor, sal_maps: Tensor
     ) -> tuple[Tensor, Tensor]:
         num_items = images.shape[0]
 
@@ -393,11 +393,12 @@ class NoiseSaliencyMixFixed:
 
 
 class RandSaliencyMix:
-    def __init__(self, beta: float) -> None:
+    def __init__(self, beta: float, use_sal_labelmix: bool) -> None:
         self.beta = beta
+        self.use_sal_labelmix = use_sal_labelmix
 
     @torch.no_grad()
-    def __call__(self, images: Tensor, labels: Tensor, sal_maps: ndarray):
+    def __call__(self, images: Tensor, labels: Tensor, sal_maps: Tensor):
         num_items = images.shape[0]
         copy_indices = np.random.permutation(num_items)
         new_images = torch.zeros_like(images)
@@ -412,28 +413,40 @@ class RandSaliencyMix:
             new_images[paste_idx, :, pr1:pr2, pc1:pc2] = new_images[
                 copy_idx, :, cr1:cr2, cc1:cc2
             ]
+
+            if self.use_sal_labelmix:
+                copy_patch_sum = sal_maps[copy_idx, cr1:cr2, cc1:cc2].sum()
+                paste_patch_sum = sal_maps[paste_idx, pr1:pr2, pc1:pc2].sum()
+                copy_ratio = copy_patch_sum / sal_maps[copy_idx].sum()
+                paste_ratio = 1 - paste_patch_sum / sal_maps[paste_idx].sum()
+                
+                norm = copy_ratio + paste_ratio
+                lam = copy_ratio / norm
+
             new_labels[paste_idx, :] = labels[paste_idx, :] * lam
             new_labels[paste_idx, :] += labels[copy_idx, :] * (1 - lam)
 
         return new_images, new_labels
 
     def get_bboxes(
-        self, sal_map: ndarray, lam: float, copy_patch: bool
+        self, sal_map: Tensor, lam: float, copy_patch: bool
     ) -> tuple[int, int, int, int]:
         h, w = sal_map.shape
         cut_ratio = np.sqrt(1.0 - lam)
         cut_h_2 = int(h * cut_ratio) // 2
         cut_w_2 = int(w * cut_ratio) // 2
 
-        prob_map = sal_map.copy().astype(np.float64)
-        if not copy_patch:
-            prob_map = 1 - prob_map
-        prob_map = np.pad(prob_map, (cut_h_2, cut_w_2))
+        prob_map = np.zeros((h, w), dtype=np.float64)
+        prob_map[cut_h_2 : -cut_h_2 + 1, cut_w_2 : -cut_w_2 + 1] = (
+            255 - sal_map[cut_h_2 : -cut_h_2 + 1, cut_w_2 : -cut_w_2 + 1]
+            if not copy_patch
+            else sal_map[cut_h_2 : -cut_h_2 + 1, cut_w_2 : -cut_w_2 + 1]
+        )
         prob_map /= prob_map.sum()
-        prob_map.flatten()
+        prob_map = prob_map.flatten()
 
         idx = np.random.choice(len(prob_map), p=prob_map)
-        row, col = np.unravel_index(idx, prob_map.shape)
+        row, col = np.unravel_index(idx, (h, w))
         bbr1 = int(row - cut_h_2)
         bbc1 = int(col - cut_w_2)
         bbr2 = int(row + cut_h_2)
