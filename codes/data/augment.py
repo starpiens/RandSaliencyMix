@@ -406,11 +406,11 @@ class RandSaliencyMix:
 
         for paste_idx, copy_idx in enumerate(copy_indices):
             lam = np.random.beta(self.beta, self.beta)
-            cr1, cc1, cr2, cc2 = self.get_bboxes(sal_maps[copy_idx], lam, True)
-            pr1, pc1, pr2, pc2 = self.get_bboxes(sal_maps[paste_idx], lam, False)
+            cr1, cc1, cr2, cc2 = self.get_bbox(sal_maps[copy_idx], lam, True)
+            pr1, pc1, pr2, pc2 = self.get_bbox(sal_maps[paste_idx], lam, False)
 
             new_images[paste_idx, ...] = images[paste_idx, ...]
-            new_images[paste_idx, :, pr1:pr2, pc1:pc2] = new_images[
+            new_images[paste_idx, :, pr1:pr2, pc1:pc2] = images[
                 copy_idx, :, cr1:cr2, cc1:cc2
             ]
 
@@ -419,37 +419,37 @@ class RandSaliencyMix:
                 paste_patch_sum = sal_maps[paste_idx, pr1:pr2, pc1:pc2].sum()
                 copy_ratio = copy_patch_sum / sal_maps[copy_idx].sum()
                 paste_ratio = 1 - paste_patch_sum / sal_maps[paste_idx].sum()
-                
+
                 norm = copy_ratio + paste_ratio
-                lam = copy_ratio / norm
+                lam = paste_ratio / norm if norm != 0 else 0.5
 
             new_labels[paste_idx, :] = labels[paste_idx, :] * lam
             new_labels[paste_idx, :] += labels[copy_idx, :] * (1 - lam)
 
         return new_images, new_labels
 
-    def get_bboxes(
+    def get_bbox(
         self, sal_map: Tensor, lam: float, copy_patch: bool
     ) -> tuple[int, int, int, int]:
         h, w = sal_map.shape
-        cut_ratio = np.sqrt(1.0 - lam)
-        cut_h_2 = int(h * cut_ratio) // 2
-        cut_w_2 = int(w * cut_ratio) // 2
+        patch_ratio = np.sqrt(1.0 - lam)
+        patch_h_2 = int(h * patch_ratio) // 2
+        patch_w_2 = int(w * patch_ratio) // 2
 
         prob_map = np.zeros((h, w), dtype=np.float64)
-        prob_map[cut_h_2 : -cut_h_2 + 1, cut_w_2 : -cut_w_2 + 1] = (
-            255 - sal_map[cut_h_2 : -cut_h_2 + 1, cut_w_2 : -cut_w_2 + 1]
+        prob_map[patch_h_2 : -patch_h_2 + 1, patch_w_2 : -patch_w_2 + 1] = (
+            255 - sal_map[patch_h_2 : -patch_h_2 + 1, patch_w_2 : -patch_w_2 + 1]
             if not copy_patch
-            else sal_map[cut_h_2 : -cut_h_2 + 1, cut_w_2 : -cut_w_2 + 1]
-        )
+            else sal_map[patch_h_2 : -patch_h_2 + 1, patch_w_2 : -patch_w_2 + 1]
+        ) + 0.0001
         prob_map /= prob_map.sum()
         prob_map = prob_map.flatten()
 
         idx = np.random.choice(len(prob_map), p=prob_map)
         row, col = np.unravel_index(idx, (h, w))
-        bbr1 = int(row - cut_h_2)
-        bbc1 = int(col - cut_w_2)
-        bbr2 = int(row + cut_h_2)
-        bbc2 = int(col + cut_w_2)
+        bbr1 = int(row - patch_h_2)
+        bbc1 = int(col - patch_w_2)
+        bbr2 = int(row + patch_h_2)
+        bbc2 = int(col + patch_w_2)
 
         return bbr1, bbc1, bbr2, bbc2
