@@ -32,6 +32,7 @@ augment:
   args:
     beta: 2.0
     use_sal_labelmix: True
+    noise_std_dev: 0.4
 
 optimizer:
   name: SGD
