@@ -376,10 +376,10 @@ class RandSaliencyMix:
         patch_w_2 = int(w * patch_ratio) // 2
 
         prob_map = np.zeros((h, w), dtype=np.float64)
-        prob_map[patch_h_2 : -patch_h_2 + 1, patch_w_2 : -patch_w_2 + 1] = (
-            255 - sal_map[patch_h_2 : -patch_h_2 + 1, patch_w_2 : -patch_w_2 + 1]
+        prob_map[patch_h_2 : h - patch_h_2 + 1, patch_w_2 : w - patch_w_2 + 1] = (
+            255 - sal_map[patch_h_2 : h - patch_h_2 + 1, patch_w_2 : w - patch_w_2 + 1]
             if not copy_patch
-            else sal_map[patch_h_2 : -patch_h_2 + 1, patch_w_2 : -patch_w_2 + 1]
+            else sal_map[patch_h_2 : h - patch_h_2 + 1, patch_w_2 : w - patch_w_2 + 1]
         ) + 0.0001
         prob_map /= prob_map.sum()
         prob_map = prob_map.flatten()
