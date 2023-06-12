@@ -1,5 +1,5 @@
 from .dataset import ImageNet, ImageNetWithSaliencyMap
-from .augment import ErrorMix, SaliencyMix, SaliencyMixFixed, SaliencyLabelMix
+from .augment import ErrorMix, SaliencyMix, SaliencyMixFixed, SaliencyLabelMix, SaliencyLabelMixFixed
 
 __all__ = [
     "ErrorMix",
@@ -8,4 +8,5 @@ __all__ = [
     "SaliencyMix",
     "SaliencyMixFixed",
     "SaliencyLabelMix",
+    "SaliencyLabelMixFixed",
 ]
