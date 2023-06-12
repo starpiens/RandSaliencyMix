@@ -8,6 +8,23 @@ import cv2
 from numpy import ndarray
 
 
+def _pick_most_salient_pixel(
+    saliency_map: ndarray, lam: float
+) -> tuple[int, int, int, int]:
+    h, w = saliency_map.shape
+    cut_ratio = np.sqrt(1.0 - lam)
+    cut_h = int(h * cut_ratio)
+    cut_w = int(w * cut_ratio)
+
+    row, col = np.unravel_index(np.argmax(saliency_map), saliency_map.shape)
+    bbr1 = int(np.clip(row - cut_h // 2, 0, h))
+    bbc1 = int(np.clip(col - cut_w // 2, 0, w))
+    bbr2 = int(np.clip(row + cut_h // 2, 0, h))
+    bbc2 = int(np.clip(col + cut_w // 2, 0, w))
+
+    return bbr1, bbc1, bbr2, bbc2
+
+
 class SaliencyLabelMix:
     """SaliencyMix implementation from the authors.
     https://github.com/afm-shahab-uddin/SaliencyMix/
@@ -29,7 +46,9 @@ class SaliencyLabelMix:
         
         inp[:, :, bbx1:bbx2, bby1:bby2] = inp[rand_index, :, bbx1:bbx2, bby1:bby2]
         
-        # Perform SaliencyLabelMix with prob 0.5
+        #save_tar = tar.clone().detach()
+        save_tar = copy.deep_copy(tar)
+        # Perform LabelMix with prob 0.5
         Cs = Ps / Is
         prob = np.random.rand(1)
         if prob > 0.5:
@@ -39,33 +58,39 @@ class SaliencyLabelMix:
                 Pt = torch.sum(St[bbx1 : bbx2, bby1 : bby2])
                 Ct = 1 - (Pt / It)
                 # Define new label definition
-                tar[index] = tar_src * Cs + tar[index] * Ct
+                tar[index] = tar_src * Cs + save_tar[index] * Ct
 
-        # Else: don't perform SaliencyLabelMix
+        # Else: don't perform LabelMix
         inp_var = torch.autograd.Variable(inp, requires_grad=True)
         
         return inp_var, tar
 
-    def _saliency_bbox(self, img: Tensor, lam: float, saliencyMap: ndarray) -> tuple[int, int, int, int]:
-        size = img.size()
-        W = size[1]
-        H = size[2]
-        cut_rat = np.sqrt(1.0 - lam)
-        cut_w = int(W * cut_rat)
-        cut_h = int(H * cut_rat)
 
-        maximum_indices = np.unravel_index(
-            np.argmax(saliencyMap, axis=None), saliencyMap.shape
-        )
-        x = maximum_indices[0]
-        y = maximum_indices[1]
+class SaliencyLabelMixFixed:
+    """SaliencyMix implementation from the authors.
+    https://github.com/afm-shahab-uddin/SaliencyMix/
+    """
 
-        bbx1 = int(np.clip(x - cut_w // 2, 0, W))
-        bby1 = int(np.clip(y - cut_h // 2, 0, H))
-        bbx2 = int(np.clip(x + cut_w // 2, 0, W))
-        bby2 = int(np.clip(y + cut_h // 2, 0, H))
+    def __init__(self, beta: float) -> None:
+        self.beta = beta
 
-        return bbx1, bby1, bbx2, bby2
+    @torch.no_grad()
+    def __call__(self, images: Tensor, labels: Tensor, sal_maps: ndarray) -> tuple[Tensor, Tensor]:
+        # Generate mixed sample
+        num_items = images.shape[0]
+        save_tar = labels.clone().detach()
+        for paste_idx in range(num_items):
+            copy_idx = np.random.randint(num_items)
+            lam = np.random.beta(self.beta, self.beta)
+            r1, c1, r2, c2 = _pick_most_salient_pixel(sal_maps[copy_idx], lam)
+            images[paste_idx, :, r1:r2, c1:c2] = images[copy_idx, :, r1:r2, c1:c2]
+            Ss, St = sal_maps[copy_idx], sal_maps[paste_idx]
+            Is, Ps = torch.sum(Ss), torch.sum(Ss[r1:r2, c1:c2])
+            Cs = Ps / Is
+            It, Pt = torch.sum(St), torch.sum(St[r1:r2, c1:c2])
+            Ct = 1 - (Pt / It)
+            labels[paste_idx] = save_tar[paste_idx] * Ct + save_tar[copy_idx] * Cs        
+        return images, labels
 
 
 class SaliencyMixFixed:
