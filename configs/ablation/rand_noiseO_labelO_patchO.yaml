@@ -1,0 +1,55 @@
+model:
+  name: ResNet
+  args:
+    dataset: imagenet
+    depth: 50
+    num_classes: 200
+    bottleneck: True
+
+train_dataloader:
+  args:
+    batch_size: 64
+    drop_last: False
+  dataset:
+    name: ImageNetWithSaliencyMap
+    args:
+      path: ~/dataset/tiny-imagenet/train
+      train: True
+      num_classes: 200
+
+val_dataloader:
+  args:
+    batch_size: 256
+  dataset:
+    name: ImageNet
+    args:
+      path: ~/dataset/tiny-imagenet/val
+      train: False
+      num_classes: 200
+
+augment:
+  name: RandSaliencyMix
+  args:
+    beta: 1.0
+    use_sal_labelmix: True
+    use_patch_prob: True
+    noise_std_dev: 0.4
+
+optimizer:
+  name: SGD
+  args:
+    lr: 0.1
+    momentum: 0.9
+    weight_decay: 0.0001
+    nesterov: True
+
+scheduler:
+  name: StepLR
+  args:
+    step_size: 75
+    gamma: 0.1
+
+loss: 
+  name: CrossEntropyLoss
+
+epochs: 100

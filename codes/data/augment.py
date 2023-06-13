@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import cv2
+import torch.nn.functional as F
 from torch import Tensor
 from numpy import ndarray
 from skimage.util import random_noise
@@ -321,10 +322,15 @@ class LocalMeanSaliencyMixFixed:
 
 class RandSaliencyMix:
     def __init__(
-        self, beta: float, use_sal_labelmix: bool, noise_std_dev: float = 0.0
+        self,
+        beta: float,
+        use_sal_labelmix: bool,
+        use_patch_prob: bool,
+        noise_std_dev: float = 0.0,
     ) -> None:
         self.beta = beta
         self.use_sal_labelmix = use_sal_labelmix
+        self.use_patch_prob = use_patch_prob
         self.noise_std_dev = noise_std_dev
 
     @torch.no_grad()
@@ -380,25 +386,46 @@ class RandSaliencyMix:
     def get_bbox(
         self, sal_map: Tensor, lam: float, copy_patch: bool
     ) -> tuple[int, int, int, int]:
-        h, w = sal_map.shape
+        H, W = sal_map.shape
         patch_ratio = np.sqrt(1.0 - lam)
-        patch_h_2 = int(h * patch_ratio) // 2
-        patch_w_2 = int(w * patch_ratio) // 2
+        h_2 = int(H * patch_ratio) // 2
+        w_2 = int(W * patch_ratio) // 2
 
-        prob_map = np.zeros((h, w), dtype=np.float64)
-        prob_map[patch_h_2 : h - patch_h_2 + 1, patch_w_2 : w - patch_w_2 + 1] = (
-            255 - sal_map[patch_h_2 : h - patch_h_2 + 1, patch_w_2 : w - patch_w_2 + 1]
-            if not copy_patch
-            else sal_map[patch_h_2 : h - patch_h_2 + 1, patch_w_2 : w - patch_w_2 + 1]
-        ) + 0.0001
-        prob_map /= prob_map.sum()
-        prob_map = prob_map.flatten()
+        if self.use_patch_prob:
+            cum_map = torch.cumsum(sal_map, 0)
+            cum_map = torch.cumsum(cum_map, 1)
+            cum_map = F.pad(cum_map, (1, 0, 1, 0))
+            h = h_2 * 2
+            w = w_2 * 2
 
-        idx = np.random.choice(len(prob_map), p=prob_map)
-        row, col = np.unravel_index(idx, (h, w))
-        bbr1 = int(row - patch_h_2)
-        bbc1 = int(col - patch_w_2)
-        bbr2 = int(row + patch_h_2)
-        bbc2 = int(col + patch_w_2)
+            prob_map = (
+                cum_map[h : H + 1, w : W + 1]
+                - cum_map[0 : H - h + 1, w : W + 1]
+                - cum_map[h : H + 1, 0 : W - w + 1]
+                + cum_map[0 : H - h + 1, 0 : W - w + 1]
+            ).numpy().astype(np.float64) + 0.0001
+            prob_map /= prob_map.sum()
+
+            idx = np.random.choice(prob_map.size, p=prob_map.flatten())
+            row, col = np.unravel_index(idx, prob_map.shape)
+            row += h_2
+            col += w_2
+
+        else:
+            prob_map = np.zeros((H, W), dtype=np.float64)
+            prob_map[h_2 : H - h_2 + 1, w_2 : W - w_2 + 1] = (
+                255 - sal_map[h_2 : H - h_2 + 1, w_2 : W - w_2 + 1]
+                if not copy_patch
+                else sal_map[h_2 : H - h_2 + 1, w_2 : W - w_2 + 1]
+            ) + 0.0001
+            prob_map /= prob_map.sum()
+
+            idx = np.random.choice(prob_map.size, p=prob_map.flatten())
+            row, col = np.unravel_index(idx, prob_map.shape)
+
+        bbr1 = int(row - h_2)
+        bbc1 = int(col - w_2)
+        bbr2 = int(row + h_2)
+        bbc2 = int(col + w_2)
 
         return bbr1, bbc1, bbr2, bbc2
