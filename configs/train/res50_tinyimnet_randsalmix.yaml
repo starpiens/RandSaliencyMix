@@ -30,7 +30,7 @@ val_dataloader:
 augment:
   name: RandSaliencyMix
   args:
-    beta: 2.0
+    beta: 1.0
     use_sal_labelmix: True
     noise_std_dev: 0.4
 

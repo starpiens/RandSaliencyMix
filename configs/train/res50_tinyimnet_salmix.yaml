@@ -8,7 +8,7 @@ model:
 
 train_dataloader:
   args:
-    batch_size: 256
+    batch_size: 128
     drop_last: False
   dataset:
     name: ImageNet
@@ -30,7 +30,7 @@ val_dataloader:
 augment:
   name: SaliencyMix
   args:
-    beta: 2.0
+    beta: 1.0
 
 optimizer:
   name: SGD

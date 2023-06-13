@@ -8,7 +8,7 @@ model:
 
 train_dataloader:
   args:
-    batch_size: 256
+    batch_size: 128
     drop_last: False
   dataset:
     name: ImageNetWithSaliencyMap
@@ -28,10 +28,11 @@ val_dataloader:
       num_classes: 200
 
 augment:
-  name: NoiseSaliencyMix
+  name: RandSaliencyMix
   args:
-    beta: 2.0
-    std_dev: 0.2
+    beta: 1.0
+    use_sal_labelmix: False
+    noise_std_dev: 0
 
 optimizer:
   name: SGD
