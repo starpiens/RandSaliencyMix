@@ -21,7 +21,7 @@ def prepare_training(
     Optimizer,
     (LRScheduler | None),
     Module,
-    (Callable[[Tensor, Tensor], Tuple[Tensor, Tensor]] | None),
+    (Callable[..., Tuple[Tensor, Tensor]] | None),
 ]:
     train_loader = create_train_loader(cfg["train_dataloader"])
     val_loader = create_val_loader(cfg["val_dataloader"])

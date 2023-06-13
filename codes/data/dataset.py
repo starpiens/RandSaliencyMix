@@ -13,7 +13,7 @@ from . import preprocess
 class ImageNet(Dataset):
     """ImageNet dataset."""
 
-    def __init__(self, path: str, num_classes: int, train: bool = True):
+    def __init__(self, path: str, num_classes: int, train: bool) -> None:
         super().__init__()
         self.num_classes = num_classes
 
@@ -68,7 +68,7 @@ class ImageNet(Dataset):
 class ImageNetWithSaliencyMap(ImageNet):
     """ImageNet dataset with saliency map."""
 
-    def __init__(self, path: str, num_classes: int, train=True):
+    def __init__(self, path: str, num_classes: int, train: bool) -> None:
         super().__init__(path, num_classes, train)
         self.saliency_computer = cv2.saliency.StaticSaliencyFineGrained_create()
 
