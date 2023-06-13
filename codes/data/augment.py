@@ -353,10 +353,20 @@ class RandSaliencyMix:
             new_images[paste_idx, :, pr1:pr2, pc1:pc2] = patch
 
             if self.use_sal_labelmix:
-                copy_patch_sum = sal_maps[copy_idx, cr1:cr2, cc1:cc2].sum()
-                paste_patch_sum = sal_maps[paste_idx, pr1:pr2, pc1:pc2].sum()
-                copy_ratio = copy_patch_sum / sal_maps[copy_idx].sum()
-                paste_ratio = 1 - paste_patch_sum / sal_maps[paste_idx].sum()
+                copy_img_saliency = sal_maps[copy_idx].sum()
+                paste_img_saliency = sal_maps[paste_idx].sum()
+
+                if copy_img_saliency == 0:
+                    copy_ratio = 0
+                else:
+                    copy_patch_saliency = sal_maps[copy_idx, cr1:cr2, cc1:cc2].sum()
+                    copy_ratio = copy_patch_saliency / copy_img_saliency
+
+                if paste_img_saliency == 0:
+                    paste_ratio = 0
+                else:
+                    paste_patch_saliency = sal_maps[paste_idx, pr1:pr2, pc1:pc2].sum()
+                    paste_ratio = 1 - paste_patch_saliency / paste_img_saliency
 
                 norm = copy_ratio + paste_ratio
                 lam = paste_ratio / norm if norm != 0 else 0.5
