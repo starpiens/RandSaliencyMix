@@ -3,7 +3,6 @@ import numpy as np
 import cv2
 import torch.nn.functional as F
 from torch import Tensor
-from numpy import ndarray
 from skimage.util import random_noise
 
 
@@ -326,21 +325,38 @@ class RandSaliencyMix:
         beta: float,
         use_sal_labelmix: bool,
         use_patch_prob: bool,
-        noise_std_dev: float = 0.0,
+        use_error_mix: bool,
+        num_classes: int,
+        noise_std_dev: float,
     ) -> None:
         self.beta = beta
         self.use_sal_labelmix = use_sal_labelmix
         self.use_patch_prob = use_patch_prob
+        self.use_error_mix = use_error_mix
         self.noise_std_dev = noise_std_dev
+        if use_error_mix:
+            self.error_matrix = np.full(
+                (num_classes, num_classes), 1 / num_classes, dtype=np.float64
+            )
 
     @torch.no_grad()
     def __call__(self, images: Tensor, labels: Tensor, sal_maps: Tensor):
         num_items = images.shape[0]
-        copy_indices = np.random.permutation(num_items)
         new_images = torch.zeros_like(images)
         new_labels = torch.zeros_like(labels)
+        labels_idx = labels.argmax(1)
 
-        for paste_idx, copy_idx in enumerate(copy_indices):
+        for paste_idx in range(num_items):
+            # Pick an index to be copied.
+            if self.use_error_mix:
+                prob = self.error_matrix[labels_idx[paste_idx], labels_idx]
+                prob += 0.0001
+                prob[paste_idx] = 0
+                prob /= prob.sum()
+                copy_idx = np.random.choice(num_items, p=prob)
+            else:
+                copy_idx = np.random.choice(num_items)
+
             # Pick regions to copy/paste.
             lam = np.random.beta(self.beta, self.beta)
             cr1, cc1, cr2, cc2 = self.get_bbox(sal_maps[copy_idx], lam, True)
@@ -429,3 +445,22 @@ class RandSaliencyMix:
         bbc2 = int(col + w_2)
 
         return bbr1, bbc1, bbr2, bbc2
+
+    @torch.no_grad()
+    def update_error_matrix(self, outputs: Tensor, labels: Tensor) -> None:
+        if not self.use_error_mix:
+            return
+        
+        labels_arr = labels.cpu().numpy()  # Assuming already normalized
+        outputs_arr = outputs.cpu().numpy()  # Needs to be normalized
+        outputs_arr -= outputs_arr.min(1, keepdims=True)
+        outputs_arr /= outputs_arr.sum(1, keepdims=True)
+        diff_matrix = np.absolute(outputs_arr - labels_arr)
+
+        num_items = outputs_arr.shape[0]
+        for i in range(num_items):
+            label_index = labels_arr[i].argmax()
+            self.error_matrix[label_index, :] = (
+                self.exp_weight * diff_matrix[i, :]
+                + (1 - self.exp_weight) * self.error_matrix[label_index, :]
+            )

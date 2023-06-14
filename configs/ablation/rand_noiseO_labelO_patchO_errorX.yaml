@@ -31,9 +31,11 @@ augment:
   name: RandSaliencyMix
   args:
     beta: 1.0
-    use_sal_labelmix: False
-    use_patch_prob: False
-    noise_std_dev: 0
+    use_sal_labelmix: True
+    use_patch_prob: True
+    use_error_mix: False
+    num_classes: 200
+    noise_std_dev: 0.4
 
 optimizer:
   name: SGD

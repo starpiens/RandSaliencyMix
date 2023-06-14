@@ -16,7 +16,7 @@ from torch.optim import Optimizer
 
 from forge import prepare_training
 from utils import AverageMeter, TopkError
-from data import ErrorMix
+from data import RandSaliencyMix
 
 
 def save_checkpoint(model, optim, sched, epoch, cfg, args, run_name, sv_path):
@@ -81,7 +81,7 @@ def validate(
     loader: DataLoader,
     model: Module,
     criterion_fns: List[Callable[[Tensor, Tensor], int | float]] = [],
-    error_mix_fn: ErrorMix | None = None,
+    aug_fn: RandSaliencyMix | None = None,
 ) -> List[float]:
     model.eval()
     results = [AverageMeter() for _ in range(len(criterion_fns))]
@@ -99,8 +99,8 @@ def validate(
                 result = result.item()
             results[i].update(result, num_items)
 
-        if error_mix_fn is not None:
-            error_mix_fn.update_error_matrix(out, tar)
+        if aug_fn is not None:
+            aug_fn.update_error_matrix(out, tar)
 
     return [i.avg for i in results]
 
@@ -286,7 +286,7 @@ def main():
             val_loader,
             model,
             criterion_fns=[loss_fn, top1_err_fn, top5_err_fn],
-            error_mix_fn=(aug_fn if isinstance(aug_fn, ErrorMix) else None),
+            aug_fn=(aug_fn if isinstance(aug_fn, RandSaliencyMix) else None),
         )
 
         val_best_loss = min(val_best_loss, loss)
