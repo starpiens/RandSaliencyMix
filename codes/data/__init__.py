@@ -1,4 +1,4 @@
-from .dataset import ImageNet, ImageNetWithSaliencyMap
+from .dataset import ImageNet, ImageNetWithSaliencyMap, CIFAR, CIFARWithSaliencyMap
 from .augment import (
     ErrorMix,
     SaliencyMix,
@@ -9,6 +9,8 @@ from .augment import (
 )
 
 __all__ = [
+    "CIFAR",
+    "CIFARWithSaliencyMap",
     "ErrorMix",
     "ImageNet",
     "ImageNetWithSaliencyMap",

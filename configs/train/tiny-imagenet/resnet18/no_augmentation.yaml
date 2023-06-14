@@ -2,7 +2,7 @@ model:
   name: ResNet
   args:
     dataset: imagenet
-    depth: 50
+    depth: 18
     num_classes: 200
     bottleneck: True
 
@@ -11,7 +11,7 @@ train_dataloader:
     batch_size: 64
     drop_last: False
   dataset:
-    name: ImageNetWithSaliencyMap
+    name: ImageNet
     args:
       path: ~/dataset/tiny-imagenet/train
       train: True
@@ -26,13 +26,6 @@ val_dataloader:
       path: ~/dataset/tiny-imagenet/val
       train: False
       num_classes: 200
-
-augment:
-  name: ErrorMix
-  args:
-    beta: 1.0
-    num_classes: 200
-    exp_weight: 0.5
 
 optimizer:
   name: SGD

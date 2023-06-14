@@ -1,3 +1,5 @@
+from typing import Literal
+
 import torch
 import cv2
 import numpy as np
@@ -70,6 +72,82 @@ class ImageNetWithSaliencyMap(ImageNet):
 
     def __init__(self, path: str, num_classes: int, train: bool) -> None:
         super().__init__(path, num_classes, train)
+        self.saliency_computer = cv2.saliency.StaticSaliencyFineGrained_create()
+
+    def __len__(self) -> int:
+        return super().__len__()
+
+    def __getitem__(self, index: int) -> tuple[Tensor, Tensor, ndarray]:
+        image, label = super().__getitem__(index)
+        image_arr = image.numpy().transpose(1, 2, 0)
+        image_arr = (
+            (image_arr - image_arr.min()) / (image_arr.max() - image_arr.min()) * 255
+        ).astype(np.uint8)
+        success, saliency_map = self.saliency_computer.computeSaliency(image_arr)
+        if not success:
+            raise RuntimeError("Failed to compute saliency map.")
+        saliency_map = (saliency_map * 255).astype("uint8")
+        return image, label, saliency_map
+
+
+class CIFAR(Dataset):
+    """CIFAR-10/100 dataset."""
+
+    def __init__(
+        self,
+        path: str,
+        num_classes: Literal[10, 100],
+        data_aug: bool,
+        train: bool,
+    ) -> None:
+        super().__init__()
+        self.num_classes = num_classes
+        self.data_aug = data_aug
+
+        transform = []
+        if train and data_aug:
+            transform.append(transforms.RandomCrop(32, padding=4))
+            transform.append(transforms.RandomHorizontalFlip())
+        transform.append(transforms.ToTensor())
+        transform.append(
+            transforms.Normalize(
+                mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
+                std=[x / 255.0 for x in [63.0, 62.1, 66.7]],
+            )
+        )
+        transform = transforms.Compose(transform)
+
+        if num_classes == 10:
+            self.dataset = datasets.CIFAR10(
+                root=path, train=train, transform=transform, download=True
+            )
+        else:
+            self.dataset = datasets.CIFAR100(
+                root=path, train=train, transform=transform, download=True
+            )
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+    def __getitem__(self, index: int) -> tuple[Tensor, Tensor]:
+        image, label = self.dataset[index]
+        label = torch.tensor(label)
+        label = one_hot(label, num_classes=self.num_classes)
+        label = label.float()
+        return image, label
+
+
+class CIFARWithSaliencyMap(CIFAR):
+    """CIFAR-10/100 dataset with saliency map."""
+
+    def __init__(
+        self,
+        path: str,
+        num_classes: Literal[10, 100],
+        data_aug: bool,
+        train: bool,
+    ) -> None:
+        super().__init__(path, num_classes, data_aug, train)
         self.saliency_computer = cv2.saliency.StaticSaliencyFineGrained_create()
 
     def __len__(self) -> int:
