@@ -31,6 +31,7 @@ augment:
   args:
     beta: 1.0
     use_sal_labelmix: True
+    use_patch_prob: True
     use_error_mix: True
     num_classes: 10
     noise_std_dev: 0.4
