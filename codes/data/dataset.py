@@ -5,8 +5,9 @@ import cv2
 import numpy as np
 from torch import Tensor
 from torch.nn.functional import one_hot
-from torchvision import transforms, datasets
 from torch.utils.data import Dataset
+from torchvision import transforms, datasets
+from torchvision.transforms import functional as TF
 from numpy import ndarray
 
 from . import preprocess
@@ -19,12 +20,17 @@ class ImageNet(Dataset):
         super().__init__()
         self.num_classes = num_classes
 
+        # Define transform.
         if train:
-            transform = transforms.Compose(
+            self.pre_transform = transforms.Compose(
                 [
                     transforms.RandomResizedCrop(224),
                     transforms.RandomHorizontalFlip(),
                     transforms.ToTensor(),
+                ]
+            )
+            self.post_transform = transforms.Compose(
+                [
                     preprocess.ColorJitter(
                         brightness=0.4, contrast=0.4, saturation=0.4
                     ),
@@ -43,23 +49,36 @@ class ImageNet(Dataset):
                 ]
             )
         else:
-            transform = transforms.Compose(
+            self.pre_transform = transforms.Compose(
                 [
                     transforms.Resize(256),
                     transforms.CenterCrop(224),
                     transforms.ToTensor(),
+                ]
+            )
+            self.post_transform = transforms.Compose(
+                [
                     transforms.Normalize(
                         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
                     ),
                 ]
             )
 
-        self.dataset = datasets.ImageFolder(path, transform=transform)
+        self.dataset = datasets.ImageFolder(path)
 
     def __len__(self) -> int:
         return len(self.dataset)
 
     def __getitem__(self, index: int) -> tuple[Tensor, Tensor]:
+        image, label = self.dataset[index]
+        image = self.pre_transform(image)
+        image = self.post_transform(image)
+        label = torch.tensor(label)
+        label = one_hot(label, num_classes=self.num_classes)
+        label = label.float()
+        return image, label
+
+    def _getitem_no_transform(self, index: int) -> tuple[Tensor, Tensor]:
         image, label = self.dataset[index]
         label = torch.tensor(label)
         label = one_hot(label, num_classes=self.num_classes)
@@ -70,24 +89,52 @@ class ImageNet(Dataset):
 class ImageNetWithSaliencyMap(ImageNet):
     """ImageNet dataset with saliency map."""
 
-    def __init__(self, path: str, num_classes: int, train: bool) -> None:
+    def __init__(
+        self,
+        path: str,
+        num_classes: int,
+        train: bool,
+        cache_salmap: bool = True,
+    ) -> None:
         super().__init__(path, num_classes, train)
+        self.cache_salmap = cache_salmap
+        if self.cache_salmap:
+            self.salmaps = [None] * len(self)
         self.saliency_computer = cv2.saliency.StaticSaliencyFineGrained_create()
 
-    def __len__(self) -> int:
-        return super().__len__()
+    def __getitem__(self, index: int) -> tuple[Tensor, Tensor, Tensor]:
+        if self.cache_salmap:
+            image, label = self._getitem_no_transform(index)
+            image = TF.to_tensor(image)
+            if self.salmaps[index] is None:
+                self.salmaps[index] = self.compute_salmap(image)
 
-    def __getitem__(self, index: int) -> tuple[Tensor, Tensor, ndarray]:
-        image, label = super().__getitem__(index)
-        image_arr = image.numpy().transpose(1, 2, 0)
-        image_arr = (
-            (image_arr - image_arr.min()) / (image_arr.max() - image_arr.min()) * 255
-        ).astype(np.uint8)
-        success, saliency_map = self.saliency_computer.computeSaliency(image_arr)
+            salmap = self.salmaps[index]
+            salmap = torch.unsqueeze(salmap, dim=0)
+            img_and_sal = torch.cat((image, salmap), dim=0)
+            img_and_sal = TF.to_pil_image(img_and_sal)
+            img_and_sal = self.pre_transform(img_and_sal)
+
+            image, salmap = torch.split(img_and_sal, [3, 1], dim=0)
+            salmap = torch.squeeze(salmap, dim=0)
+            image = self.post_transform(image)
+            return image, label, salmap
+
+        else:
+            image, label = super().__getitem__(index)
+            salmap = self.compute_salmap(image)
+            return image, label, salmap
+
+    def compute_salmap(self, image: Tensor) -> Tensor:
+        img_arr = image.numpy().transpose(1, 2, 0)
+        img_arr = (img_arr - img_arr.min()) / (img_arr.max() - img_arr.min())
+        img_arr = (img_arr * 255).astype(np.uint8)
+        success, salmap = self.saliency_computer.computeSaliency(img_arr)
         if not success:
             raise RuntimeError("Failed to compute saliency map.")
-        saliency_map = (saliency_map * 255).astype("uint8")
-        return image, label, saliency_map
+        salmap = (salmap * 255).astype("uint8")
+        salmap = torch.from_numpy(salmap)
+        return salmap
 
 
 class CIFAR(Dataset):
@@ -149,9 +196,6 @@ class CIFARWithSaliencyMap(CIFAR):
     ) -> None:
         super().__init__(path, num_classes, data_aug, train)
         self.saliency_computer = cv2.saliency.StaticSaliencyFineGrained_create()
-
-    def __len__(self) -> int:
-        return super().__len__()
 
     def __getitem__(self, index: int) -> tuple[Tensor, Tensor, ndarray]:
         image, label = super().__getitem__(index)
