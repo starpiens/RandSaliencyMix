@@ -107,16 +107,21 @@ class ImageNetWithSaliencyMap(ImageNet):
             image, label = self._getitem_no_transform(index)
             image = TF.to_tensor(image)
             if self.salmaps[index] is None:
-                self.salmaps[index] = self.compute_salmap(image)
+                salmap = self.compute_salmap(image)
+                salmap = salmap.to(torch.float32)
+                salmap /= 255
+                salmap = torch.unsqueeze(salmap, dim=0)
+                self.salmaps[index] = salmap
 
             salmap = self.salmaps[index]
-            salmap = torch.unsqueeze(salmap, dim=0)
             img_and_sal = torch.cat((image, salmap), dim=0)
             img_and_sal = TF.to_pil_image(img_and_sal)
             img_and_sal = self.pre_transform(img_and_sal)
 
             image, salmap = torch.split(img_and_sal, [3, 1], dim=0)
             salmap = torch.squeeze(salmap, dim=0)
+            salmap *= 255
+            salmap = salmap.to(torch.uint8)
             image = self.post_transform(image)
             return image, label, salmap
 
