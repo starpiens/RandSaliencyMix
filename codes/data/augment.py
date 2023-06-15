@@ -334,6 +334,7 @@ class RandSaliencyMix:
         self.use_patch_prob = use_patch_prob
         self.use_error_mix = use_error_mix
         self.noise_std_dev = noise_std_dev
+        self.exp_weight = 0.5
         if use_error_mix:
             self.error_matrix = np.full(
                 (num_classes, num_classes), 1 / num_classes, dtype=np.float64
