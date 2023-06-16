@@ -1,0 +1,56 @@
+model:
+  name: ResNet18
+  args:
+    num_classes: 10
+
+train_dataloader:
+  args:
+    batch_size: 256
+    drop_last: False
+  dataset:
+    name: CIFARWithSaliencyMap
+    args:
+      path: ~/dataset/cifar10
+      num_classes: 10
+      data_aug: False
+      train: True
+
+val_dataloader:
+  args:
+    batch_size: 256
+  dataset:
+    name: CIFAR
+    args:
+      path: ~/dataset/cifar10
+      num_classes: 10
+      data_aug: False
+      train: False
+
+augment:
+  name: RandSaliencyMix
+  args:
+    beta: 1.0
+    use_sal_labelmix: False
+    use_patch_prob: True
+    use_error_mix: True
+    num_classes: 10
+    noise_std_dev: 0.4
+
+optimizer:
+  name: SGD
+  args:
+    lr: 0.1
+    momentum: 0.9
+    weight_decay: 0.0005
+    nesterov: True
+
+scheduler:
+  name: MultiStepLR
+  args:
+    milestones: [60, 120, 160]
+    gamma: 0.2
+
+loss: 
+  name: CrossEntropyLoss
+
+epochs: 200
